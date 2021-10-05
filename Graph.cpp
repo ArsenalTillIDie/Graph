@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <list>
+#include <queue>
 
 template<class T> class Node {
 public:
@@ -147,7 +148,7 @@ template<class T> struct Pair {
 
 template<class T> struct Vertex {
 	Pair<T> data;
-	List<Vertex*> adjacencyList;
+	List<Vertex<T>*> adjacencyList;
 	Vertex(Pair<T> d) {
 		data = d;
 	}
@@ -167,29 +168,52 @@ template<class T> struct Vertex {
 };
 
 template<class T> class Graph {
-	Vertex<T>* root;
-
+private:
+	void BFS(Vertex<T>* current, std::vector<bool>& markedVertices,
+		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::queue<Vertex<T>*>& q) {
+		q.push(current);
+		while (!(q.empty())) {
+			Vertex<T>* u = q.front();
+			q.pop();
+			for (typename List<Vertex<T>*>::iterator it = u->adjacencyList.begin(); it != u->adjacencyList.end(); ++it) {
+				if (!(markedVertices[index((*it)->data)])) {
+					markedVertices[index((*it)->data)] = true;
+					path.push_back((*it)->data);
+					distances[index((*it)->data)] = distances[index(u)] + 1;
+					predecessors[index((*it)->data)] = u;
+					q.push((*it)->data);
+				}
+			}
+		}
+	}
+	void DFS(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<Vertex<T>*>& path) {
+		markedVertices[index(current)] = true;
+		path.push_back(current);
+		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
+			bool marked = false;
+			if (markedVertices[index((*it)->data)]) continue;
+			DFS((*it)->data, markedVertices, path);
+		}
+		return;
+	}
 public:
+	std::vector<Vertex<T>> vertices;
 	/*Graph(Vertex<T> r) {
-		
+
 		std::vector<Vertex<T>*> markedVertices;
 		root = new Vertex<T>(r.data);
 		markedVertices.push_back(root);
 		createVertex(root, markedVertices, r);
-		
+
 
 	}
 	*/
-	Graph(Vertex<T>* r) {
-		root = r;
+	Graph(std::vector<Vertex<T>> v) {
+		vertices = v;
 	}
 	/*
 	~Graph() {
-		std::vector<Vertex<T>*> markedVertices = {};
-		markedVertices.push_back(root);
-		deleteBranch(root, markedVertices);
-		for (int i = 0; i < markedVertices.size(); i++)
-			delete markedVertices[i];
+		delete[] root;
 	}
 	*/
 	/*
@@ -208,7 +232,7 @@ public:
 			newVertex->adjacencyList.push_front(pvx);
 		}
 	}
-	
+
 	void deleteBranch(Vertex<T>* current, std::vector<Vertex<T>*>& markedVertices) {
 		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
 			bool marked = false;
@@ -222,97 +246,94 @@ public:
 		}
 	}
 	*/
-	Vertex<T>* BFS(unsigned int key, Vertex<T>* current, std::vector<unsigned int>& markedVertices) {
-		if (current == root) {
-			if (current->data.first == key) return current;
-			markedVertices.push_back(current->data.first);
-		}
-		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
-			bool marked = false;
-			for (int i = 0; i < markedVertices.size(); i++)
-				if ((*it)->data->data.first == markedVertices[i]) {
-					marked = true;
-				}
-			if (marked) continue;
-			if ((*it)->data->data.first == key) return (*it)->data;
-		}
-		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
-			bool marked = false;
-			for (int i = 0; i < markedVertices.size(); i++)
-				if ((*it)->data->data.first == markedVertices[i]) {
-					marked = true;
-				}
-			if (marked) continue;
-			markedVertices.push_back((*it)->data->data.first);
-			Vertex<T>* pvx = BFS(key, (*it)->data, markedVertices);
-			if (pvx != nullptr) return pvx;
-		}
-		return nullptr;
+	int index(Vertex<T>* pvx) {
+		int index = pvx - &(vertices[0]);
+		return index;
 	}
-	Vertex<T>* BFS(unsigned int key) {
-		std::vector<unsigned int> markedVertices = {};
-		return BFS(key, root, markedVertices);
-	}
-	Vertex<T>* DFS(unsigned int key, Vertex<T>* current, std::vector<unsigned int>& markedVertices) {
-		if (current->data.first == key) return current;
-		markedVertices.push_back(current->data.first);
-		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
-			bool marked = false;
-			for (int i = 0; i < markedVertices.size(); i++)
-				if ((*it)->data->data.first == markedVertices[i]) {
-					marked = true;
-				}
-			if (marked) continue;
-			Vertex<T>* pvx = DFS(key, (*it)->data, markedVertices);
-			if (pvx != nullptr) return pvx;
+
+	std::vector<Vertex<T>*> BFS(int startingVertex, std::vector<int>* d = nullptr, std::vector<Vertex<T>*>* pred = nullptr) {
+		std::vector<bool> markedVertices(vertices.size());
+		markedVertices[startingVertex] = true;
+		std::vector<Vertex<T>*> path = {};
+		path.push_back(&(vertices[startingVertex]));
+		std::vector<int> distances(vertices.size());
+		for (int i = 0; i < vertices.size(); i++) {
+			if (i == startingVertex) distances[i] = 0;
+			else distances[i] = -1;
 		}
-		return nullptr;
+		std::vector<Vertex<T>*> predecessors(vertices.size());
+		std::queue<Vertex<T>*> q;
+		BFS(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, q);
+		if (d != nullptr)
+			*d = distances;
+		if (pred != nullptr)
+			*pred = predecessors;
+		return path;
 	}
-	Vertex<T>* DFS(unsigned int key) {
-		std::vector<unsigned int> markedVertices = {};
-		return DFS(key, root, markedVertices);
+
+	std::vector<Vertex<T>*> DFS(int startingVertex = 0) {
+		std::vector<bool> markedVertices(vertices.size());
+		std::vector<Vertex<T>*> path = {};
+		DFS(&(vertices[startingVertex]), markedVertices, path);
+		for (int i = 0; i < vertices.size(); i++)
+			if (!(markedVertices[i])) DFS(&(vertices[i]), markedVertices, path);
+		return path;
 	}
 };
 
 
 int main()
 {
-	std::vector<Pair<int>> pairs;
 	std::vector<Vertex<int>> vertices;
 	for (int i = 0; i <= 8; i++) {
-		pairs.push_back(Pair<int>(i, i * 12));
-		vertices.push_back(Vertex<int>(pairs[i]));
+		vertices.push_back(Vertex<int>(Pair<int>(i, i * 12), List<Vertex<int>*>()));
 	}
-	vertices[0].adjacencyList.push_front(&(vertices[1])); //   8-0-7
-	vertices[0].adjacencyList.push_front(&(vertices[7])); //   | | |
-	vertices[0].adjacencyList.push_front(&(vertices[8])); //   3-1-2
-	vertices[1].adjacencyList.push_front(&(vertices[0])); //   |\ /|
-	vertices[1].adjacencyList.push_front(&(vertices[2])); //   5-6-4
-	vertices[1].adjacencyList.push_front(&(vertices[3])); 
-	vertices[2].adjacencyList.push_front(&(vertices[1])); 
-	vertices[2].adjacencyList.push_front(&(vertices[4])); 
-	vertices[2].adjacencyList.push_front(&(vertices[6])); 
-	vertices[2].adjacencyList.push_front(&(vertices[7]));
-	vertices[3].adjacencyList.push_front(&(vertices[1]));
-	vertices[3].adjacencyList.push_front(&(vertices[5]));
-	vertices[3].adjacencyList.push_front(&(vertices[6]));
-	vertices[3].adjacencyList.push_front(&(vertices[8]));
-	vertices[4].adjacencyList.push_front(&(vertices[2]));
-	vertices[4].adjacencyList.push_front(&(vertices[6]));
-	vertices[5].adjacencyList.push_front(&(vertices[3]));
-	vertices[5].adjacencyList.push_front(&(vertices[6]));
-	vertices[6].adjacencyList.push_front(&(vertices[2]));
-	vertices[6].adjacencyList.push_front(&(vertices[3]));
-	vertices[6].adjacencyList.push_front(&(vertices[4]));
-	vertices[6].adjacencyList.push_front(&(vertices[5]));
-	vertices[7].adjacencyList.push_front(&(vertices[0]));
-	vertices[7].adjacencyList.push_front(&(vertices[2]));
-	vertices[8].adjacencyList.push_front(&(vertices[0]));
-	vertices[8].adjacencyList.push_front(&(vertices[3]));
-	Graph<int> graph(&(vertices[0]));
-	for (int i = 0; i <= 8; i++) {
-		std::cout << graph.BFS(i)->data.second << " " << graph.DFS(i)->data.second << std::endl;
-	}
+
+	Graph<int> graph(vertices);
+	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[1])); //   8-0-7
+	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[7])); //   | | |
+	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[8])); //   3-1-2
+	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[0])); //   |\ /|
+	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[2])); //   5-6-4
+	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[3]));
+	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[1]));
+	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[4]));
+	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[6]));
+	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[7]));
+	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[1]));
+	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[5]));
+	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[6]));
+	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[8]));
+	graph.vertices[4].adjacencyList.push_front(&(graph.vertices[2]));
+	graph.vertices[4].adjacencyList.push_front(&(graph.vertices[6]));
+	graph.vertices[5].adjacencyList.push_front(&(graph.vertices[3]));
+	graph.vertices[5].adjacencyList.push_front(&(graph.vertices[6]));
+	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[2]));
+	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[3]));
+	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[4]));
+	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[5]));
+	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[0]));
+	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[2]));
+	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[0]));
+	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[3]));
+	/*
+	for (int i = 0; i < graph.vertices.size(); i++)
+		std::cout << graph.index(&(graph.vertices[i])) << " ";
+		*/
+	std::vector<Vertex<int>*> path = graph.DFS(0);
+	for (int i = 0; i < path.size(); i++)
+		std::cout << path[i]->data.first << " ";
+	std::cout << std::endl << std::endl;
+	std::vector<int> distances;
+	std::vector<Vertex<int>*> predecessors;
+	path = graph.BFS(0, &distances, &predecessors);
+	for (int i = 0; i < path.size(); i++)
+		std::cout << path[i]->data.first << " ";
+	std::cout << std::endl;
+	std::cout << std::endl;
+	for (int i = 0; i < graph.vertices.size(); i++)
+		std::cout << distances[i] << " ";
+	std::cout << std::endl;
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
