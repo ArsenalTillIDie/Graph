@@ -167,8 +167,10 @@ template<class T> struct Vertex {
 	}
 };
 
+const int UNREACHABLE = -1;
+
 template<class T> class Graph {
-private:
+protected:
 	void BFS(Vertex<T>* current, std::vector<bool>& markedVertices,
 		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::queue<Vertex<T>*>& q) {
 		q.push(current);
@@ -186,66 +188,42 @@ private:
 			}
 		}
 	}
-	void DFS(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<Vertex<T>*>& path) {
+	void DFS(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<Vertex<T>*>& path, std::vector<int>& components, int currentComponent) {
 		markedVertices[index(current)] = true;
 		path.push_back(current);
+		components[index(current)] = currentComponent;
 		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
 			bool marked = false;
 			if (markedVertices[index((*it)->data)]) continue;
-			DFS((*it)->data, markedVertices, path);
+			DFS((*it)->data, markedVertices, path, components, currentComponent);
 		}
 		return;
 	}
+	void dijkstra(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::queue<Vertex<T>*>& q) {
+		q.push(current);
+		while (!(q.empty())) {
+			Vertex<T>* u = q.front();
+			q.pop();
+			for (typename List<Vertex<T>*>::iterator it = u->adjacencyList.begin(); it != u->adjacencyList.end(); ++it) {
+				if (!(markedVertices[index((*it)->data)]) || distances[index(u)] + weights[index(u)][index((*it)->data)] < distances[index((*it)->data)]) {
+					markedVertices[index((*it)->data)] = true;
+					distances[index((*it)->data)] = distances[index(u)] + weights[index(u)][index((*it)->data)];
+					predecessors[index((*it)->data)] = u;
+					q.push((*it)->data);
+				}
+			}
+		}
+	}
 public:
 	std::vector<Vertex<T>> vertices;
-	/*Graph(Vertex<T> r) {
-
-		std::vector<Vertex<T>*> markedVertices;
-		root = new Vertex<T>(r.data);
-		markedVertices.push_back(root);
-		createVertex(root, markedVertices, r);
-
-
-	}
-	*/
+	int** weights;
 	Graph(std::vector<Vertex<T>> v) {
 		vertices = v;
 	}
-	/*
-	~Graph() {
-		delete[] root;
+	Graph(std::vector<Vertex<T>> v, int** ws) {
+		vertices = v;
+		weights = ws;
 	}
-	*/
-	/*
-	void createVertex(Vertex<T>* pvx, std::vector<Vertex<T>*>& markedVertices, Vertex<T> vx) {
-		for (typename List<Vertex<T>*>::iterator it = vx.adjacencyList.begin(); it != vx.adjacencyList.end(); ++it) {
-			bool marked = false;
-			for (int i = 0; i < markedVertices.size(); i++)
-				if ((*it)->data->data.first == markedVertices[i]->data.first) {
-					marked = true;
-					pvx->adjacencyList.push_front(markedVertices[i]);
-				}
-			if (marked) continue;
-			Vertex<T>* newVertex = pvx->adjacencyList.push_front(new Vertex<T>((*it)->data->data))->data;
-			markedVertices.push_back((*it)->data);
-			createVertex(newVertex, markedVertices, (*it)->data->data);
-			newVertex->adjacencyList.push_front(pvx);
-		}
-	}
-
-	void deleteBranch(Vertex<T>* current, std::vector<Vertex<T>*>& markedVertices) {
-		for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
-			bool marked = false;
-			for (int i = 0; i < markedVertices.size(); i++)
-				if ((*it)->data == markedVertices[i]) {
-					marked = true;
-				}
-			if (marked) continue;
-			markedVertices.push_back((*it)->data);
-			deleteBranch((*it)->data, markedVertices);
-		}
-	}
-	*/
 	int index(Vertex<T>* pvx) {
 		int index = pvx - &(vertices[0]);
 		return index;
@@ -259,7 +237,7 @@ public:
 		std::vector<int> distances(vertices.size());
 		for (int i = 0; i < vertices.size(); i++) {
 			if (i == startingVertex) distances[i] = 0;
-			else distances[i] = -1;
+			else distances[i] = UNREACHABLE;
 		}
 		std::vector<Vertex<T>*> predecessors(vertices.size());
 		std::queue<Vertex<T>*> q;
@@ -271,15 +249,41 @@ public:
 		return path;
 	}
 
-	std::vector<Vertex<T>*> DFS(int startingVertex = 0) {
+	std::vector<Vertex<T>*> DFS(int startingVertex = 0, std::vector<int>* comp = nullptr) {
 		std::vector<bool> markedVertices(vertices.size());
 		std::vector<Vertex<T>*> path = {};
-		DFS(&(vertices[startingVertex]), markedVertices, path);
-		for (int i = 0; i < vertices.size(); i++)
-			if (!(markedVertices[i])) DFS(&(vertices[i]), markedVertices, path);
+		std::vector<int> components(vertices.size());
+		int currentComponent = 0;
+		DFS(&(vertices[startingVertex]), markedVertices, path, components, currentComponent);
+		currentComponent++;
+		for (int i = 0; i < vertices.size(); i++) {
+			if (!(markedVertices[i])) {
+				DFS(&(vertices[i]), markedVertices, path, components, currentComponent);
+				currentComponent++;
+			}
+		}
+		if (comp != nullptr)
+			*comp = components;
 		return path;
 	}
+	void dijkstra(int startingVertex, std::vector<int>* d = nullptr, std::vector<Vertex<T>*>* pred = nullptr) {
+		std::vector<bool> markedVertices(vertices.size());
+		markedVertices[startingVertex] = true;
+		std::vector<int> distances(vertices.size());
+		for (int i = 0; i < vertices.size(); i++) {
+			if (i == startingVertex) distances[i] = 0;
+			else distances[i] = UNREACHABLE;
+		}
+		std::vector<Vertex<T>*> predecessors(vertices.size());
+		std::queue<Vertex<T>*> q;
+		dijkstra(&(vertices[startingVertex]), markedVertices, distances, predecessors, q);
+		if (d != nullptr)
+			*d = distances;
+		if (pred != nullptr)
+			*pred = predecessors;
+	}
 };
+
 
 
 int main()
@@ -288,12 +292,27 @@ int main()
 	for (int i = 0; i <= 8; i++) {
 		vertices.push_back(Vertex<int>(Pair<int>(i, i * 12), List<Vertex<int>*>()));
 	}
-
-	Graph<int> graph(vertices);
-	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[1])); //   8-0-7
-	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[7])); //   | | |
+	int** weights = new int* [9];
+	for (int i = 0; i < 9; i++)
+		weights[i] = new int[9];
+	weights[0][8] = 1;
+	weights[1][2] = 1;
+	weights[1][3] = 3;
+	weights[2][4] = 2;
+	weights[2][6] = 4;
+	weights[2][7] = 1;
+	weights[3][5] = 6;
+	weights[3][6] = 1;
+	weights[4][6] = 1;
+	weights[5][6] = 2;
+	for (int i = 0; i < 9; i++)
+		for (int j = i + 1; j < 9; j++)
+			weights[j][i] = weights[i][j];
+	Graph<int> graph(vertices, weights);
+	//	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[1])); //   8-0 7
+	//	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[7])); //       |
 	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[8])); //   3-1-2
-	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[0])); //   |\ /|
+//	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[0])); //   |\ /|
 	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[2])); //   5-6-4
 	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[3]));
 	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[1]));
@@ -303,7 +322,7 @@ int main()
 	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[1]));
 	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[5]));
 	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[6]));
-	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[8]));
+	//	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[8]));
 	graph.vertices[4].adjacencyList.push_front(&(graph.vertices[2]));
 	graph.vertices[4].adjacencyList.push_front(&(graph.vertices[6]));
 	graph.vertices[5].adjacencyList.push_front(&(graph.vertices[3]));
@@ -312,28 +331,37 @@ int main()
 	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[3]));
 	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[4]));
 	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[5]));
-	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[0]));
+	//	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[0]));
 	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[2]));
 	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[0]));
-	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[3]));
-	/*
-	for (int i = 0; i < graph.vertices.size(); i++)
-		std::cout << graph.index(&(graph.vertices[i])) << " ";
-		*/
-	std::vector<Vertex<int>*> path = graph.DFS(0);
+	//	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[3]));
+			/*
+			for (int i = 0; i < graph.vertices.size(); i++)
+				std::cout << graph.index(&(graph.vertices[i])) << " ";
+				*/
+	std::vector<int> components;
+	std::vector<Vertex<int>*> path = graph.DFS(0, &components);
 	for (int i = 0; i < path.size(); i++)
 		std::cout << path[i]->data.first << " ";
+	std::cout << std::endl << std::endl;
+	for (int i = 0; i < graph.vertices.size(); i++)
+		std::cout << components[i] << " ";
 	std::cout << std::endl << std::endl;
 	std::vector<int> distances;
 	std::vector<Vertex<int>*> predecessors;
 	path = graph.BFS(0, &distances, &predecessors);
 	for (int i = 0; i < path.size(); i++)
 		std::cout << path[i]->data.first << " ";
-	std::cout << std::endl;
-	std::cout << std::endl;
+	std::cout << std::endl << std::endl;
 	for (int i = 0; i < graph.vertices.size(); i++)
 		std::cout << distances[i] << " ";
-	std::cout << std::endl;
+	std::cout << std::endl << std::endl;
+	graph.dijkstra(1, &distances);
+	for (int i = 0; i < graph.vertices.size(); i++)
+		std::cout << distances[i] << " ";
+	for (int i = 0; i < 9; i++)
+		delete[] weights[i];
+	delete[] weights;
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
