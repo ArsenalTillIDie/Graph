@@ -179,9 +179,13 @@ template <class T> struct VertexDistance {
 		distance = d;
 	}
 	bool operator<(const VertexDistance<T> vd) const {
-		if (distance < vd.distance)
+		if (distance < vd.distance || (distance == vd.distance && vertex->data.first < vd.vertex->data.first))
 			return true;
 		else return false;
+	}
+	VertexDistance(const VertexDistance& vd) {
+		vertex = vd.vertex;
+		distance = vd.distance;
 	}
 };
 
@@ -218,7 +222,7 @@ protected:
 		return;
 	}
 	void dijkstra(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::set<VertexDistance<T>>& s) {
-		bool finished;
+		
 		VertexDistance<T> vd1(current, 0);
 		s.insert(vd1);
 		
@@ -228,7 +232,8 @@ protected:
 			s.erase(s.begin());
 
 			for (typename List<Vertex<T>*>::iterator it = current->adjacencyList.begin(); it != current->adjacencyList.end(); ++it) {
-				if (!(markedVertices[index((*it)->data)]) && (distances[index(current)] + weights[index(current)][index((*it)->data)] < distances[index((*it)->data)] || distances[index((*it)->data)] == UNREACHABLE)) {
+				if (markedVertices[index((*it)->data)]) continue;
+				if (distances[index(current)] + weights[index(current)][index((*it)->data)] < distances[index((*it)->data)] || distances[index((*it)->data)] == UNREACHABLE) {
 					distances[index((*it)->data)] = distances[index(current)] + weights[index(current)][index((*it)->data)];
 					predecessors[index((*it)->data)] = current;
 					VertexDistance<T> vd2(&(vertices[index((*it)->data)]), distances[index((*it)->data)]);
@@ -309,61 +314,78 @@ public:
 	}
 };
 
-
+const int ITERATIONS = 10;
+const int NVERTICES = ITERATIONS * 9;
 
 int main()
 {
 	std::vector<Vertex<int>> vertices;
-	for (int i = 0; i <= 8; i++) {
+	
+	for (int i = 0; i < NVERTICES; i++) {
 		vertices.push_back(Vertex<int>(Pair<int>(i, i * 12), List<Vertex<int>*>()));
 	}
-	int** weights = new int*[9];
-	for (int i = 0; i < 9; i++)
-		weights[i] = new int[9];
-	weights[0][8] = 1;
-	weights[1][2] = 1;
-	weights[1][3] = 3;
-	weights[2][4] = 2;
-	weights[2][6] = 4;
-	weights[2][7] = 1;
-	weights[3][5] = 6;
-	weights[3][6] = 1;
-	weights[4][6] = 1;
-	weights[5][6] = 2;
-	for (int i = 0; i < 9; i++)
-		for (int j = i + 1; j < 9; j++)
-			weights[j][i] = weights[i][j];
+	
+	int** weights = new int* [NVERTICES];
+	for (int i = 0; i < NVERTICES; i++)
+		weights[i] = new int[NVERTICES];
+	
+	for (int k = 0; k < ITERATIONS; k++) {
+		weights[k * 9 + 0][k * 9 + 1] = 1;
+		weights[k * 9 + 0][k * 9 + 8] = 1;
+		weights[k * 9 + 1][k * 9 + 2] = 1;
+		weights[k * 9 + 1][k * 9 + 3] = 3;
+		weights[k * 9 + 2][k * 9 + 4] = 2;
+		weights[k * 9 + 2][k * 9 + 6] = 4;
+		weights[k * 9 + 2][k * 9 + 7] = 1;
+		weights[k * 9 + 3][k * 9 + 5] = 6;
+		weights[k * 9 + 3][k * 9 + 6] = 1;
+		weights[k * 9 + 4][k * 9 + 6] = 1;
+		weights[k * 9 + 5][k * 9 + 6] = 2;
+		for (int i = 0; i < 9; i++)
+			for (int j = i + 1; j < 9; j++) {
+				weights[k * 9 + j][k * 9 + i] = weights[k * 9 + i][k * 9 + j];
+			}
+	}
+	
 	Graph<int> graph(vertices, weights);
-//	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[1])); //   8-0 7
-//	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[7])); //       |
-	graph.vertices[0].adjacencyList.push_front(&(graph.vertices[8])); //   3-1-2
-//	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[0])); //   |\ /|
-	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[2])); //   5-6-4
-	graph.vertices[1].adjacencyList.push_front(&(graph.vertices[3]));
-	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[1]));
-	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[4]));
-	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[6]));
-	graph.vertices[2].adjacencyList.push_front(&(graph.vertices[7]));
-	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[1]));
-	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[5]));
-	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[6]));
-//	graph.vertices[3].adjacencyList.push_front(&(graph.vertices[8]));
-	graph.vertices[4].adjacencyList.push_front(&(graph.vertices[2]));
-	graph.vertices[4].adjacencyList.push_front(&(graph.vertices[6]));
-	graph.vertices[5].adjacencyList.push_front(&(graph.vertices[3]));
-	graph.vertices[5].adjacencyList.push_front(&(graph.vertices[6]));
-	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[2]));
-	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[3]));
-	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[4]));
-	graph.vertices[6].adjacencyList.push_front(&(graph.vertices[5]));
-//	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[0]));
-	graph.vertices[7].adjacencyList.push_front(&(graph.vertices[2]));
-	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[0]));
-//	graph.vertices[8].adjacencyList.push_front(&(graph.vertices[3]));
-		/*
-		for (int i = 0; i < graph.vertices.size(); i++)
-			std::cout << graph.index(&(graph.vertices[i])) << " ";
-			*/
+	for (int k = 0; k < ITERATIONS; k++) {
+	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 1])); //   8-0 7 17-9  16
+//	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 7])); //     | |    |  |
+	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 8])); //   3-1-2-12-10-11- ... 
+	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 0])); //   |\ /|  |\  /|
+	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 2])); //   5-6-4 14-15-13
+	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
+	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
+	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 7]));
+	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
+	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
+	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+	//	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 8]));
+	graph.vertices[k * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
+	graph.vertices[k * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+	graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+	graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
+	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
+	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
+	//	graph.vertices[k * 9 + 7].adjacencyList.push_front(&(graph.vertices[k * 9 + 0]));
+	graph.vertices[k * 9 + 7].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
+	graph.vertices[k * 9 + 8].adjacencyList.push_front(&(graph.vertices[k * 9 + 0]));
+	if (k != 0) {
+		graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[(k - 1) * 9 + 2]));
+		graph.vertices[(k - 1) * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+		weights[k * 9 + 3][(k - 1) * 9 + 2] = 1;
+		weights[(k - 1) * 9 + 2][k * 9 + 3] = 1;
+	}
+	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+			/*
+			for (int i = 0; i < graph.vertices.size(); i++)
+				std::cout << graph.index(&(graph.vertices[i])) << " ";
+				*/
+}
 	std::vector<int> components;
 	std::vector<Vertex<int>*> path = graph.DFS(0, &components);
 	for (int i = 0; i < path.size(); i++)
@@ -381,12 +403,15 @@ int main()
 	for (int i = 0; i < graph.vertices.size(); i++)
 		std::cout << distances[i] << " ";
 	std::cout << std::endl << std::endl;
+
 	graph.dijkstra(1, &distances);
 	for (int i = 0; i < graph.vertices.size(); i++)
 		std::cout << distances[i] << " ";
-	for (int i = 0; i < 9; i++)
+	
+	for (int i = 0; i < NVERTICES; i++)
 		delete[] weights[i];
 	delete[] weights;
+	
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
