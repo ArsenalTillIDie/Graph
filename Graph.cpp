@@ -6,6 +6,8 @@
 #include <list>
 #include <queue>
 #include <set>
+#include <ctime>
+#include <cstdlib>
 
 template<class T> class Node {
 public:
@@ -147,9 +149,13 @@ template<class T> struct Pair {
 	}
 };
 
+
 template<class T> struct Vertex {
 	Pair<T> data;
 	List<Vertex<T>*> adjacencyList;
+	Vertex() {
+
+	}
 	Vertex(Pair<T> d) {
 		data = d;
 	}
@@ -312,13 +318,84 @@ public:
 		if (pred != nullptr)
 			*pred = predecessors;
 	}
+	void addEdge(int v1, int v2, int weight = 0) {
+		vertices[v1].adjacencyList.push_front(&(vertices[v2]));
+		vertices[v2].adjacencyList.push_front(&(vertices[v1]));
+		weights[v1][v2] = weight;
+		weights[v2][v1] = weight;
+	}
 };
 
-const int ITERATIONS = 10;
-const int NVERTICES = ITERATIONS * 9;
+Graph<int> generateGraph(int nVertices, int**& weights) {
+	const static int maxWeight = 5;
+	std::vector<Vertex<int>> vertices(nVertices);
+	weights = new int* [nVertices];
+	for (int i = 0; i < nVertices; i++) {
+		weights[i] = new int[nVertices];
+		for (int j = 0; j < nVertices; j++)
+			weights[i][j] = 0;
+	}
+	Graph<int> graph(vertices, weights);
+	for (int i = 0; i < nVertices; i++) {
+		int r = rand();
+		Vertex<int> vx(Pair<int>(i, r), List<Vertex<int>*>());
+		graph.vertices[i] = vx;
+		int newEdges = rand() % 6;
+		if (i < newEdges) newEdges = i;
+		for (int j = 0; j < newEdges; j++) {
+			int randVertex;
+			do {
+				randVertex = rand() % i;
+			} while (weights[randVertex][i] != 0);
+			graph.vertices[i].adjacencyList.push_front(&(graph.vertices[randVertex]));
+			graph.vertices[randVertex].adjacencyList.push_front(&(graph.vertices[i]));
+			int randWeight = rand() % maxWeight + 1;
+			weights[i][randVertex] = randWeight;
+			weights[randVertex][i] = randWeight;
+		}
+	}
+	return graph;
+}
+
+Graph<int> washington(int N, int**& weights) {
+	const int nVertices = 3 * N + 3;
+	std::vector<Vertex<int>> vertices(nVertices);
+	weights = new int* [nVertices];
+	for (int i = 0; i < nVertices; i++) {
+		weights[i] = new int[nVertices];
+		for (int j = 0; j < nVertices; j++)
+			weights[i][j] = 0;
+	}
+	Graph<int> graph(vertices, weights);
+	for (int i = 0; i < 3 * N + 3; i++) {
+		Vertex<int> vx(Pair<int>(i, N), List<Vertex<int>*>());
+		graph.vertices[i] = vx;
+	}
+	graph.addEdge(0, 1, N);
+	int currEdge = 3;
+	for (int i = 0; i < N; i++) {
+		graph.addEdge(1, currEdge, N);
+		currEdge++;
+		graph.addEdge(currEdge - 1, currEdge, N);
+		currEdge++;
+		graph.addEdge(currEdge - 1, 2, N);
+	}
+	graph.addEdge(2, currEdge, N);
+	currEdge++;
+	for (int i = 0; i < N - 1; i++) {
+		graph.addEdge(currEdge - 1, currEdge, N);
+		currEdge++;
+	}
+	return graph;
+}
+//const int ITERATIONS = 10;
+//const int NVERTICES = ITERATIONS * 9;
+const int NVERTICES = 10;
 
 int main()
 {
+	srand(time(NULL));
+	/*
 	std::vector<Vertex<int>> vertices;
 	
 	for (int i = 0; i < NVERTICES; i++) {
@@ -353,7 +430,7 @@ int main()
 //	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 7])); //     | |    |  |
 	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 8])); //   3-1-2-12-10-11- ... 
 	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 0])); //   |\ /|  |\  /|
-	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 2])); //   5-6-4 14-15-13
+	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 2])); //   5-6-4-14-15-13
 	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
 	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
 	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
@@ -379,13 +456,21 @@ int main()
 		graph.vertices[(k - 1) * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
 		weights[k * 9 + 3][(k - 1) * 9 + 2] = 1;
 		weights[(k - 1) * 9 + 2][k * 9 + 3] = 1;
+		graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[(k - 1) * 9 + 4]));
+		graph.vertices[(k - 1) * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
+		weights[k * 9 + 5][(k - 1) * 9 + 4] = 1;
+		weights[(k - 1) * 9 + 4][k * 9 + 5] = 1;
 	}
 	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
 			/*
 			for (int i = 0; i < graph.vertices.size(); i++)
 				std::cout << graph.index(&(graph.vertices[i])) << " ";
-				*/
+				
 }
+*/
+	int** weights = nullptr;
+	//Graph<int> graph = generateGraph(NVERTICES, weights);
+	Graph<int> graph = washington(5, weights);
 	std::vector<int> components;
 	std::vector<Vertex<int>*> path = graph.DFS(0, &components);
 	for (int i = 0; i < path.size(); i++)
