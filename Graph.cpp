@@ -8,6 +8,7 @@
 #include <set>
 #include <ctime>
 #include <cstdlib>
+#include <bitset>
 
 template<class T> class Node {
 public:
@@ -216,6 +217,29 @@ protected:
 			}
 		}
 	}
+	void BFSBottomUp(Vertex<T>* current, std::vector<bool>& markedVertices,
+		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::vector<bool>& frontier) {
+		std::vector<bool> next(vertices.size());
+		predecessors[index(current)] = current;
+		distances[index(current)] = 0;
+		frontier[index(current)] = true;
+		while (std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
+			for(int i = 0; i < vertices.size(); i++)
+				if (predecessors[i] == nullptr) {
+					for (typename List<Vertex<T>*>::iterator it = vertices[i].adjacencyList.begin(); it != vertices[i].adjacencyList.end(); ++it) {
+						if (frontier[index((*it)->data)]) {
+							next[i] = true;
+							predecessors[i] = (*it)->data;
+							distances[i] = distances[index((*it)->data)] + 1;
+							path.push_back(&(vertices[i]));
+							break;
+						}
+					}
+				}
+			frontier = next;
+			std::fill(next.begin(), next.end(), false);
+		}
+	}
 	void DFS(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<Vertex<T>*>& path, std::vector<int>& components, int currentComponent) {
 		markedVertices[index(current)] = true;
 		path.push_back(current);
@@ -277,7 +301,9 @@ public:
 		}
 		std::vector<Vertex<T>*> predecessors(vertices.size());
 		std::queue<Vertex<T>*> q;
-		BFS(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, q);
+		std::vector<bool> frontier(vertices.size());
+		//BFS(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, q);
+		BFSBottomUp(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, frontier);
 		if (d != nullptr)
 			*d = distances;
 		if (pred != nullptr)
@@ -388,14 +414,16 @@ Graph<int> washington(int N, int**& weights) {
 	}
 	return graph;
 }
-//const int ITERATIONS = 10;
-//const int NVERTICES = ITERATIONS * 9;
-const int NVERTICES = 10;
+const int ITERATIONS = 10;
+const int NVERTICES = ITERATIONS * 9;
+//const int NVERTICES = 10;
+
+
 
 int main()
 {
 	srand(time(NULL));
-	/*
+	
 	std::vector<Vertex<int>> vertices;
 	
 	for (int i = 0; i < NVERTICES; i++) {
@@ -426,51 +454,47 @@ int main()
 	
 	Graph<int> graph(vertices, weights);
 	for (int k = 0; k < ITERATIONS; k++) {
-	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 1])); //   8-0 7 17-9  16
-//	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 7])); //     | |    |  |
-	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 8])); //   3-1-2-12-10-11- ... 
-	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 0])); //   |\ /|  |\  /|
-	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 2])); //   5-6-4-14-15-13
-	graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
-	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
-	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
-	graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 7]));
-	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
-	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
-	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
-	//	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 8]));
-	graph.vertices[k * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
-	graph.vertices[k * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
-	graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-	graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
-	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
-	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
-	graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
-	//	graph.vertices[k * 9 + 7].adjacencyList.push_front(&(graph.vertices[k * 9 + 0]));
-	graph.vertices[k * 9 + 7].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
-	graph.vertices[k * 9 + 8].adjacencyList.push_front(&(graph.vertices[k * 9 + 0]));
-	if (k != 0) {
-		graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[(k - 1) * 9 + 2]));
-		graph.vertices[(k - 1) * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-		weights[k * 9 + 3][(k - 1) * 9 + 2] = 1;
-		weights[(k - 1) * 9 + 2][k * 9 + 3] = 1;
-		graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[(k - 1) * 9 + 4]));
-		graph.vertices[(k - 1) * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
-		weights[k * 9 + 5][(k - 1) * 9 + 4] = 1;
-		weights[(k - 1) * 9 + 4][k * 9 + 5] = 1;
+		graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 1])); //   8-0 7 17-9  16
+	//	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 7])); //     | |    |  |
+		graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 8])); //   3-1-2-12-10-11- ... 
+		graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 0])); //   |\ /|  |\  /|
+		graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 2])); //   5-6-4-14-15-13
+		graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+		graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
+		graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
+		graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+		graph.vertices[k * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 7]));
+		graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 1]));
+		graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
+		graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+		//	graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[k * 9 + 8]));
+		graph.vertices[k * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
+		graph.vertices[k * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+		graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+		graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[k * 9 + 6]));
+		graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
+		graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+		graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 4]));
+		graph.vertices[k * 9 + 6].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
+		//	graph.vertices[k * 9 + 7].adjacencyList.push_front(&(graph.vertices[k * 9 + 0]));
+		graph.vertices[k * 9 + 7].adjacencyList.push_front(&(graph.vertices[k * 9 + 2]));
+		graph.vertices[k * 9 + 8].adjacencyList.push_front(&(graph.vertices[k * 9 + 0]));
+		if (k != 0) {
+			graph.vertices[k * 9 + 3].adjacencyList.push_front(&(graph.vertices[(k - 1) * 9 + 2]));
+			graph.vertices[(k - 1) * 9 + 2].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
+			weights[k * 9 + 3][(k - 1) * 9 + 2] = 1;
+			weights[(k - 1) * 9 + 2][k * 9 + 3] = 1;
+			graph.vertices[k * 9 + 5].adjacencyList.push_front(&(graph.vertices[(k - 1) * 9 + 4]));
+			graph.vertices[(k - 1) * 9 + 4].adjacencyList.push_front(&(graph.vertices[k * 9 + 5]));
+			weights[k * 9 + 5][(k - 1) * 9 + 4] = 1;
+			weights[(k - 1) * 9 + 4][k * 9 + 5] = 1;
+		}
 	}
 	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-			/*
-			for (int i = 0; i < graph.vertices.size(); i++)
-				std::cout << graph.index(&(graph.vertices[i])) << " ";
-				
-}
-*/
-	int** weights = nullptr;
+
+	//int** weights = nullptr;
 	//Graph<int> graph = generateGraph(NVERTICES, weights);
-	Graph<int> graph = washington(5, weights);
+	//Graph<int> graph = washington(100, weights);
 	std::vector<int> components;
 	std::vector<Vertex<int>*> path = graph.DFS(0, &components);
 	for (int i = 0; i < path.size(); i++)
