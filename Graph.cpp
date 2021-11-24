@@ -200,10 +200,25 @@ const int UNREACHABLE = -1;
 
 template<class T> class Graph {
 protected:
+	void convertQueueToBitset(std::queue<Vertex<T>*> q, std::vector<bool>& frontier) {
+		std::fill(frontier.begin(), frontier.end(), false);
+		while (!q.empty()) {
+			frontier[index(q.front())] = true;
+			q.pop();
+		}
+	}
+	void convertBitsetToQueue(std::vector<bool> frontier, std::queue<Vertex<T>*>& q) {
+		while (!q.empty()) {
+			q.pop();
+		}
+		for (int i = 0; i < frontier.size(); i++)
+			if (frontier[i])
+				q.push(&(vertices[i]));
+	}
 	void BFS(Vertex<T>* current, std::vector<bool>& markedVertices,
-		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::queue<Vertex<T>*>& q) {
-		q.push(current);
-		while (!(q.empty())) {
+		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::queue<Vertex<T>*>& q,
+		double a) {
+		while (true) {
 			Vertex<T>* u = q.front();
 			q.pop();
 			for (typename List<Vertex<T>*>::iterator it = u->adjacencyList.begin(); it != u->adjacencyList.end(); ++it) {
@@ -215,14 +230,34 @@ protected:
 					q.push((*it)->data);
 				}
 			}
+			if (!q.empty() && distances[index(u)] + 1 == distances[index(q.front())]) {
+				std::queue<Vertex<T>*> q2 = q;
+				int mf = 0, mu = 0;
+				while (!q2.empty()) {
+					Vertex<T>* vx = q2.front();
+					q2.pop();
+					for (typename List<Vertex<T>*>::iterator it = vx->adjacencyList.begin(); it != vx->adjacencyList.end(); ++it) {
+						if (distances[index((*it)->data)] == UNREACHABLE || distances[index((*it)->data)] == distances[index(u)] + 1)
+							mf++;
+					}
+					for (int i = 0; i < vertices.size(); i++)
+						if (predecessors[i] == nullptr) {
+							for (typename List<Vertex<T>*>::iterator it = vertices[i].adjacencyList.begin(); it != vertices[i].adjacencyList.end(); ++it) {
+								mu++;
+							}
+						}
+				}
+				if (mf > mu / a) return;
+			}
+			if (q.empty()) return;
 		}
 	}
 	void BFSBottomUp(Vertex<T>* current, std::vector<bool>& markedVertices,
-		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::vector<bool>& frontier) {
+		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::vector<bool>& frontier,
+		double b) {
 		std::vector<bool> next(vertices.size());
 		predecessors[index(current)] = current;
 		distances[index(current)] = 0;
-		frontier[index(current)] = true;
 		while (std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
 			for(int i = 0; i < vertices.size(); i++)
 				if (predecessors[i] == nullptr) {
@@ -238,6 +273,8 @@ protected:
 				}
 			frontier = next;
 			std::fill(next.begin(), next.end(), false);
+			int nf = std::count(frontier.begin(), frontier.end(), true);
+			if (nf < vertices.size()) return;
 		}
 	}
 	void DFS(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<Vertex<T>*>& path, std::vector<int>& components, int currentComponent) {
@@ -289,7 +326,7 @@ public:
 		return index;
 	}
 
-	std::vector<Vertex<T>*> BFS(int startingVertex, std::vector<int>* d = nullptr, std::vector<Vertex<T>*>* pred = nullptr) {
+	std::vector<Vertex<T>*> BFS(int startingVertex, std::vector<int>* d = nullptr, std::vector<Vertex<T>*>* pred = nullptr, double a = 1, double b = 1) {
 		std::vector<bool> markedVertices(vertices.size());
 		markedVertices[startingVertex] = true;
 		std::vector<Vertex<T>*> path = {};
@@ -301,9 +338,18 @@ public:
 		}
 		std::vector<Vertex<T>*> predecessors(vertices.size());
 		std::queue<Vertex<T>*> q;
+		q.push(&(vertices[startingVertex]));
 		std::vector<bool> frontier(vertices.size());
-		//BFS(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, q);
-		BFSBottomUp(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, frontier);
+		frontier[startingVertex] = true;
+		while (!q.empty() && std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
+			BFS(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, q, a);
+			if (!q.empty() && std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
+				convertQueueToBitset(q, frontier);
+				BFSBottomUp(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, frontier, b);
+				convertBitsetToQueue(frontier, q);
+			}
+			//conversion v->q
+		}
 		if (d != nullptr)
 			*d = distances;
 		if (pred != nullptr)
@@ -392,6 +438,7 @@ Graph<int> washington(int N, int**& weights) {
 		for (int j = 0; j < nVertices; j++)
 			weights[i][j] = 0;
 	}
+	
 	Graph<int> graph(vertices, weights);
 	for (int i = 0; i < 3 * N + 3; i++) {
 		Vertex<int> vx(Pair<int>(i, N), List<Vertex<int>*>());
@@ -418,7 +465,7 @@ const int ITERATIONS = 10;
 const int NVERTICES = ITERATIONS * 9;
 //const int NVERTICES = 10;
 
-
+const double a = 30, b = 5;
 
 int main()
 {
@@ -491,7 +538,7 @@ int main()
 		}
 	}
 	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-
+	
 	//int** weights = nullptr;
 	//Graph<int> graph = generateGraph(NVERTICES, weights);
 	//Graph<int> graph = washington(100, weights);
@@ -505,7 +552,7 @@ int main()
 	std::cout << std::endl << std::endl;
 	std::vector<int> distances;
 	std::vector<Vertex<int>*> predecessors;
-	path = graph.BFS(0, &distances, &predecessors);
+	path = graph.BFS(0, &distances, &predecessors, a, b);
 	for (int i = 0; i < path.size(); i++)
 		std::cout << path[i]->data.first << " ";
 	std::cout << std::endl << std::endl;
