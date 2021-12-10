@@ -1,6 +1,7 @@
 // Graph.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+
 #include <iostream>
 #include <vector>
 #include <list>
@@ -9,6 +10,8 @@
 #include <ctime>
 #include <cstdlib>
 #include <bitset>
+#include <ratio>
+#include <chrono>
 
 template<class T> class Node {
 public:
@@ -218,6 +221,7 @@ protected:
 	void BFS(Vertex<T>* current, std::vector<bool>& markedVertices,
 		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::queue<Vertex<T>*>& q,
 		double a) {
+		bool iterationComplete = false;
 		while (true) {
 			Vertex<T>* u = q.front();
 			q.pop();
@@ -247,7 +251,8 @@ protected:
 							}
 						}
 				}
-				if (mf > mu / a) return;
+				if (mf > mu / a && iterationComplete) return;
+				else iterationComplete = true;
 			}
 			if (q.empty()) return;
 		}
@@ -256,6 +261,7 @@ protected:
 		std::vector<Vertex<T>*>& path, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::vector<bool>& frontier,
 		double b) {
 		std::vector<bool> next(vertices.size());
+		bool iterationComplete = false;
 		predecessors[index(current)] = current;
 		distances[index(current)] = 0;
 		while (std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
@@ -274,7 +280,8 @@ protected:
 			frontier = next;
 			std::fill(next.begin(), next.end(), false);
 			int nf = std::count(frontier.begin(), frontier.end(), true);
-			if (nf < vertices.size()) return;
+			if (nf < vertices.size() && iterationComplete) return;
+			else iterationComplete = true;
 		}
 	}
 	void DFS(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<Vertex<T>*>& path, std::vector<int>& components, int currentComponent) {
@@ -341,14 +348,20 @@ public:
 		q.push(&(vertices[startingVertex]));
 		std::vector<bool> frontier(vertices.size());
 		frontier[startingVertex] = true;
+		int i = 0;
 		while (!q.empty() && std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
 			BFS(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, q, a);
+			i++;
+			if (i == 2) break;
 			if (!q.empty() && std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
+				startingVertex = index(path[path.size() - 1]);
+				//std::cout << "->";
 				convertQueueToBitset(q, frontier);
 				BFSBottomUp(&(vertices[startingVertex]), markedVertices, path, distances, predecessors, frontier, b);
+				startingVertex = index(path[path.size() - 1]);
+				//std::cout << "<-";
 				convertBitsetToQueue(frontier, q);
 			}
-			//conversion v->q
 		}
 		if (d != nullptr)
 			*d = distances;
@@ -461,15 +474,15 @@ Graph<int> washington(int N, int**& weights) {
 	}
 	return graph;
 }
-const int ITERATIONS = 10;
+const int ITERATIONS = 1000;
 const int NVERTICES = ITERATIONS * 9;
 //const int NVERTICES = 10;
 
-const double a = 30, b = 5;
+const double a = 0.0001, b = 100;
 
 int main()
 {
-	srand(time(NULL));
+	//srand(time(NULL));
 	
 	std::vector<Vertex<int>> vertices;
 	
@@ -540,8 +553,10 @@ int main()
 	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
 	
 	//int** weights = nullptr;
-	//Graph<int> graph = generateGraph(NVERTICES, weights);
-	//Graph<int> graph = washington(100, weights);
+	//Graph<int> graph1 = generateGraph(NVERTICES, weights);
+	Graph<int> graph1 = washington(3000, weights);
+
+	/*
 	std::vector<int> components;
 	std::vector<Vertex<int>*> path = graph.DFS(0, &components);
 	for (int i = 0; i < path.size(); i++)
@@ -550,11 +565,18 @@ int main()
 	for (int i = 0; i < graph.vertices.size(); i++)
 		std::cout << components[i] << " ";
 	std::cout << std::endl << std::endl;
+	*/
 	std::vector<int> distances;
 	std::vector<Vertex<int>*> predecessors;
-	path = graph.BFS(0, &distances, &predecessors, a, b);
-	for (int i = 0; i < path.size(); i++)
-		std::cout << path[i]->data.first << " ";
+	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+	std::vector<Vertex<int>*> BFSpath = graph1.BFS(0, &distances, &predecessors, a, b);
+	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+	std::cout << time_span.count() << " seconds";
+	std::cout << std::endl;
+	 /*
+	for (int i = 0; i < BFSpath.size(); i++)
+		std::cout << BFSpath[i]->data.first << " ";/*
 	std::cout << std::endl << std::endl;
 	for (int i = 0; i < graph.vertices.size(); i++)
 		std::cout << distances[i] << " ";
@@ -567,7 +589,7 @@ int main()
 	for (int i = 0; i < NVERTICES; i++)
 		delete[] weights[i];
 	delete[] weights;
-	
+	*/
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
