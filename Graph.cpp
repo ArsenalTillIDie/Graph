@@ -77,7 +77,10 @@ public:
 		return pnn;
 	}
 	void erase_after(Node<T>* n) {
-		if (n == nullptr) pop_front();
+		if (n == nullptr) {
+			pop_front();
+			return;
+		}
 		Node<T>* rem = n->next;
 		n->next = rem->next;
 		delete rem;
@@ -265,7 +268,7 @@ protected:
 		predecessors[index(current)] = current;
 		distances[index(current)] = 0;
 		while (std::any_of(frontier.begin(), frontier.end(), [](bool v) {return v; })) {
-			for(int i = 0; i < vertices.size(); i++)
+			for (int i = 0; i < vertices.size(); i++)
 				if (predecessors[i] == nullptr) {
 					for (typename List<Vertex<T>*>::iterator it = vertices[i].adjacencyList.begin(); it != vertices[i].adjacencyList.end(); ++it) {
 						if (frontier[index((*it)->data)]) {
@@ -296,10 +299,10 @@ protected:
 		return;
 	}
 	void dijkstra(Vertex<T>* current, std::vector<bool>& markedVertices, std::vector<int>& distances, std::vector<Vertex<T>*>& predecessors, std::set<VertexDistance<T>>& s) {
-		
+
 		VertexDistance<T> vd1(current, 0);
 		s.insert(vd1);
-		
+
 		while (!s.empty()) {
 
 			current = s.begin()->vertex;
@@ -316,7 +319,7 @@ protected:
 				markedVertices[index(current)] = true;
 			}
 		}
-		
+
 	}
 public:
 	std::vector<Vertex<T>> vertices;
@@ -328,7 +331,31 @@ public:
 		vertices = v;
 		weights = ws;
 	}
-	int index(Vertex<T>* pvx) {
+	Graph(const Graph<T>& g) {
+		std::vector<Vertex<int>> vxs;
+
+		for (int i = 0; i < g.vertices.size(); i++) {
+			vxs.push_back(Vertex<int>(Pair<int>(g.vertices[i].data.first, g.vertices[i].data.second), List<Vertex<int>*>()));
+		}
+
+		int** ws = new int* [g.vertices.size()];
+		for (int i = 0; i < g.vertices.size(); i++)
+			ws[i] = new int[g.vertices.size()];
+		for (int i = 0; i < g.vertices.size(); i++)
+			for (int j = 0; j < g.vertices.size(); j++)
+				ws[i][j] = g.weights[i][j];
+
+		vertices = vxs;
+		weights = ws;
+
+		for (int i = 0; i < g.vertices.size(); i++) {
+			for (typename List<Vertex<T>*>::iterator it = g.vertices[i].adjacencyList.begin(); it != g.vertices[i].adjacencyList.end(); ++it) {
+				vertices[i].adjacencyList.push_front(&(vertices[g.index((*it)->data)]));
+			}
+		}
+
+	}
+	int index(Vertex<T>* pvx) const {
 		int index = pvx - &(vertices[0]);
 		return index;
 	}
@@ -403,11 +430,88 @@ public:
 		if (pred != nullptr)
 			*pred = predecessors;
 	}
+	Graph<T> minimumSpanningTree(int startingVertex = 0) {
+		std::vector<bool> markedVertices(vertices.size());
+		std::vector<Vertex<T>> vxs(vertices.size());
+		Graph<T> res(*this);
+		res.vertices = vxs;
+		markedVertices[startingVertex] = true;
+		while (!std::all_of(markedVertices.begin(), markedVertices.end(), [](bool v) {return v; })) {
+			int minWeight = INT_MAX; int v1 = -1, v2 = -1;
+			for (int i = 0; i < vertices.size(); i++) {
+				if (markedVertices[i]) {
+					for (typename List<Vertex<T>*>::iterator it = vertices[i].adjacencyList.begin(); it != vertices[i].adjacencyList.end(); ++it) {
+						if (markedVertices[index((*it)->data)]) continue;
+						if (weights[i][index((*it)->data)] < minWeight) {
+							minWeight = weights[i][index((*it)->data)];
+							v1 = i;
+							v2 = index((*it)->data);
+						}
+					}
+				}
+			}
+			res.addEdge(v1, v2, weights[v1][v2]);
+			markedVertices[v2] = true;
+		}
+		return res;
+	}
+	int heaviestEdge(int& v1, int& v2) {
+		int maxWeight = 0;
+		for (int i = 0; i < vertices.size(); i++)
+			for (typename List<Vertex<T>*>::iterator it = vertices[i].adjacencyList.begin(); it != vertices[i].adjacencyList.end(); ++it) {
+				if (weights[i][index((*it)->data)] > maxWeight) {
+					maxWeight = weights[i][index((*it)->data)];
+					v1 = i;
+					v2 = index((*it)->data);
+				}
+			}
+		return maxWeight;
+	}
+	std::vector<int> clusterise(int nClusters) {
+		Graph<T> mst = minimumSpanningTree();
+		for (int i = 0; i < nClusters - 1; i++) {
+			int v1; int v2;
+			mst.heaviestEdge(v1, v2);
+			mst.removeEdge(v1, v2);
+		}
+		std::vector<int> clusters;
+		mst.DFS(0, &clusters);
+
+		for (int i = 0; i < mst.vertices.size(); i++)
+			delete[] mst.weights[i];
+		delete[] mst.weights;
+
+		return clusters;
+	}
 	void addEdge(int v1, int v2, int weight = 0) {
 		vertices[v1].adjacencyList.push_front(&(vertices[v2]));
 		vertices[v2].adjacencyList.push_front(&(vertices[v1]));
 		weights[v1][v2] = weight;
 		weights[v2][v1] = weight;
+	}
+	void removeEdge(int v1, int v2) {
+		Node<Vertex<T>*>* rm1 = reinterpret_cast<Node<Vertex<T>*>*>(1);
+		if (index(vertices[v1].adjacencyList.getFirst()->data) == v2) rm1 = nullptr;
+		if (rm1 != nullptr) for (typename List<Vertex<T>*>::iterator it = vertices[v1].adjacencyList.begin(); it != vertices[v1].adjacencyList.end(); ++it) {
+			if (index((*it)->next->data) == v2) {
+				rm1 = *it;
+				break;
+			}
+		}
+		vertices[v1].adjacencyList.erase_after(rm1);
+
+		Node<Vertex<T>*>* rm2 = reinterpret_cast<Node<Vertex<T>*>*>(1);
+		if (index(vertices[v2].adjacencyList.getFirst()->data) == v1) rm2 = nullptr;
+		if (rm2 != nullptr) for (typename List<Vertex<T>*>::iterator it = vertices[v2].adjacencyList.begin(); it != vertices[v2].adjacencyList.end(); ++it) {
+			if (index((*it)->next->data) == v1) {
+				rm2 = *it;
+				break;
+			}
+		}
+		vertices[v2].adjacencyList.erase_after(rm2);
+
+		weights[v1][v2] = 0;
+		weights[v2][v1] = 0;
 	}
 };
 
@@ -451,7 +555,7 @@ Graph<int> washington(int N, int**& weights) {
 		for (int j = 0; j < nVertices; j++)
 			weights[i][j] = 0;
 	}
-	
+
 	Graph<int> graph(vertices, weights);
 	for (int i = 0; i < 3 * N + 3; i++) {
 		Vertex<int> vx(Pair<int>(i, N), List<Vertex<int>*>());
@@ -474,7 +578,7 @@ Graph<int> washington(int N, int**& weights) {
 	}
 	return graph;
 }
-const int ITERATIONS = 1000;
+const int ITERATIONS = 1;
 const int NVERTICES = ITERATIONS * 9;
 //const int NVERTICES = 10;
 
@@ -483,17 +587,17 @@ const double a = 0.0001, b = 100;
 int main()
 {
 	//srand(time(NULL));
-	
+
 	std::vector<Vertex<int>> vertices;
-	
+
 	for (int i = 0; i < NVERTICES; i++) {
 		vertices.push_back(Vertex<int>(Pair<int>(i, i * 12), List<Vertex<int>*>()));
 	}
-	
+
 	int** weights = new int* [NVERTICES];
 	for (int i = 0; i < NVERTICES; i++)
 		weights[i] = new int[NVERTICES];
-	
+
 	for (int k = 0; k < ITERATIONS; k++) {
 		weights[k * 9 + 0][k * 9 + 1] = 1;
 		weights[k * 9 + 0][k * 9 + 8] = 1;
@@ -511,7 +615,7 @@ int main()
 				weights[k * 9 + j][k * 9 + i] = weights[k * 9 + i][k * 9 + j];
 			}
 	}
-	
+
 	Graph<int> graph(vertices, weights);
 	for (int k = 0; k < ITERATIONS; k++) {
 		graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 1])); //   8-0 7 17-9  16
@@ -551,10 +655,10 @@ int main()
 		}
 	}
 	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-	
+
 	//int** weights = nullptr;
 	//Graph<int> graph1 = generateGraph(NVERTICES, weights);
-	Graph<int> graph1 = washington(3000, weights);
+	//Graph<int> graph1 = washington(3000, weights);
 
 	/*
 	std::vector<int> components;
@@ -566,6 +670,12 @@ int main()
 		std::cout << components[i] << " ";
 	std::cout << std::endl << std::endl;
 	*/
+	std::vector<int> clusters;
+	clusters = graph.clusterise(3);
+	for (int i = 0; i < graph.vertices.size(); i++)
+		std::cout << clusters[i] << " ";
+	std::cout << std::endl << std::endl;
+	/*
 	std::vector<int> distances;
 	std::vector<Vertex<int>*> predecessors;
 	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
@@ -574,22 +684,23 @@ int main()
 	std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
 	std::cout << time_span.count() << " seconds";
 	std::cout << std::endl;
-	 /*
-	for (int i = 0; i < BFSpath.size(); i++)
-		std::cout << BFSpath[i]->data.first << " ";/*
-	std::cout << std::endl << std::endl;
-	for (int i = 0; i < graph.vertices.size(); i++)
-		std::cout << distances[i] << " ";
-	std::cout << std::endl << std::endl;
+	*/
 
-	graph.dijkstra(1, &distances);
-	for (int i = 0; i < graph.vertices.size(); i++)
-		std::cout << distances[i] << " ";
-	
+	/*
+   for (int i = 0; i < BFSpath.size(); i++)
+	   std::cout << BFSpath[i]->data.first << " ";/*
+   std::cout << std::endl << std::endl;
+   for (int i = 0; i < graph.vertices.size(); i++)
+	   std::cout << distances[i] << " ";
+   std::cout << std::endl << std::endl;
+
+   graph.dijkstra(1, &distances);
+   for (int i = 0; i < graph.vertices.size(); i++)
+	   std::cout << distances[i] << " ";
+   */
 	for (int i = 0; i < NVERTICES; i++)
 		delete[] weights[i];
 	delete[] weights;
-	*/
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
