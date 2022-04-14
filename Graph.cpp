@@ -12,6 +12,62 @@
 #include <bitset>
 #include <ratio>
 #include <chrono>
+#include <cmath>
+#include <algorithm>
+#include <fstream>
+#include <string>
+#include <sstream>
+
+struct Point {
+	double x;
+	double y;
+	Point(double _x, double _y) {
+		x = _x;
+		y = _y;
+	}
+};
+
+double distance(Point a, Point b) {
+	return pow((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y), 0.5);
+}
+
+struct Iris {
+	double sepalLength;
+	double sepalWidth;
+	double petalLength;
+	double petalWidth;
+};
+
+double irisDistance(Iris a, Iris b) {
+	return pow(pow(a.sepalLength - b.sepalLength, 2) + pow(a.sepalWidth - b.sepalWidth, 2) +
+		pow(a.petalLength - b.petalLength, 2) + pow(a.petalWidth - b.petalWidth, 2), 0.5);
+}
+
+std::vector<Iris> readIrisesFromFile(std::string fileName) {
+	std::ifstream file;
+	std::vector<Iris> irises;
+	file.open(fileName);
+	int i = 0;
+	std::string line;
+	while (std::getline(file, line)) {
+		if (line == "") break;
+		std::istringstream iss(line);
+		std::string substr;
+		Iris iris;
+		std::getline(iss, substr, ',');
+		iris.sepalLength = std::stod(substr);
+		std::getline(iss, substr, ',');
+		iris.sepalWidth = std::stod(substr);
+		std::getline(iss, substr, ',');
+		iris.petalLength = std::stod(substr);
+		std::getline(iss, substr, ',');
+		iris.petalWidth = std::stod(substr);
+		//iss >> iris.sepalLength >> iris.sepalWidth >> iris.petalLength >> iris.petalWidth;
+		irises.push_back(iris);
+	}
+	file.close();
+	return irises;
+}
 
 template<class T> class Node {
 public:
@@ -181,6 +237,17 @@ template<class T> struct Vertex {
 	}
 };
 
+struct EdgeInfo {
+	int a;
+	int b;
+	int weight;
+	bool operator<(const EdgeInfo ei) {
+		if (weight < ei.weight)
+			return true;
+		else return false;
+	}
+};
+
 template <class T> struct VertexDistance {
 	Vertex<T>* vertex;
 	int distance;
@@ -321,9 +388,31 @@ protected:
 		}
 
 	}
+	void initDSU(std::vector<int>& p, std::vector<int>& rk) {
+		for (int i = 0; i < p.size(); i++) {
+			p[i] = i;
+			rk[i] = 1;
+		}
+	}
+	int getRoot(std::vector<int>& p, std::vector<int>& rk, int v) {
+		if (p[v] == v) return v;
+		else return p[v] = getRoot(p, rk, p[v]);
+	}
+	bool merge(std::vector<int>& p, std::vector<int>& rk, int a, int b) {
+		int ra = getRoot(p, rk, a), rb = getRoot(p, rk, b);
+		if (ra == rb) return false;
+		else if (rk[ra] < rk[rb]) p[ra] = rb;
+		else if (rk[rb] < rk[ra]) p[rb] = ra;
+		else {
+			p[ra] = rb;
+			rk[rb]++;
+		}
+		return true;
+	}
 public:
 	std::vector<Vertex<T>> vertices;
 	int** weights;
+	Graph() {};
 	Graph(std::vector<Vertex<T>> v) {
 		vertices = v;
 	}
@@ -354,6 +443,30 @@ public:
 			}
 		}
 
+	}
+	Graph<T> operator=(const Graph<T>& g) {
+		std::vector<Vertex<int>> vxs;
+
+		for (int i = 0; i < g.vertices.size(); i++) {
+			vxs.push_back(Vertex<int>(Pair<int>(g.vertices[i].data.first, g.vertices[i].data.second), List<Vertex<int>*>()));
+		}
+
+		int** ws = new int* [g.vertices.size()];
+		for (int i = 0; i < g.vertices.size(); i++)
+			ws[i] = new int[g.vertices.size()];
+		for (int i = 0; i < g.vertices.size(); i++)
+			for (int j = 0; j < g.vertices.size(); j++)
+				ws[i][j] = g.weights[i][j];
+
+		vertices = vxs;
+		weights = ws;
+
+		for (int i = 0; i < g.vertices.size(); i++) {
+			for (typename List<Vertex<T>*>::iterator it = g.vertices[i].adjacencyList.begin(); it != g.vertices[i].adjacencyList.end(); ++it) {
+				vertices[i].adjacencyList.push_front(&(vertices[g.index((*it)->data)]));
+			}
+		}
+		return *this;
 	}
 	int index(Vertex<T>* pvx) const {
 		int index = pvx - &(vertices[0]);
@@ -430,7 +543,7 @@ public:
 		if (pred != nullptr)
 			*pred = predecessors;
 	}
-	Graph<T> minimumSpanningTree(int startingVertex = 0) {
+	Graph<T> prim(int startingVertex = 0) {
 		std::vector<bool> markedVertices(vertices.size());
 		std::vector<Vertex<T>> vxs(vertices.size());
 		Graph<T> res(*this);
@@ -455,6 +568,26 @@ public:
 		}
 		return res;
 	}
+	Graph<T> kruskal() {
+		std::vector<int> p(vertices.size()), rk(vertices.size());
+		std::vector<bool> markedVertices(vertices.size());
+		std::vector<EdgeInfo> allEdges;
+		for (int i = 0; i < vertices.size(); i++) {
+			for (int j = i; j < vertices.size(); j++) {
+				if (weights[i][j] > 0) allEdges.push_back({ i, j, weights[i][j] });
+			}
+		}
+		std::sort(allEdges.begin(), allEdges.end());
+		std::vector<Vertex<T>> vxs(vertices.size());
+		Graph<T> res(*this);
+		res.vertices = vxs;
+		std::vector<int> components(vertices.size());
+		initDSU(p, rk);
+		for (int i = 0; i < allEdges.size(); i++)
+			if (merge(p, rk, allEdges[i].a, allEdges[i].b))
+				res.addEdge(allEdges[i].a, allEdges[i].b, weights[allEdges[i].a][allEdges[i].b]);
+		return res;
+	}
 	int heaviestEdge(int& v1, int& v2) {
 		int maxWeight = 0;
 		for (int i = 0; i < vertices.size(); i++)
@@ -467,8 +600,10 @@ public:
 			}
 		return maxWeight;
 	}
-	std::vector<int> clusterise(int nClusters) {
-		Graph<T> mst = minimumSpanningTree();
+	std::vector<int> clusterise(int nClusters, int algorithm = 0) {
+		Graph<T> mst;
+		if (algorithm == 0) mst = prim();
+		if (algorithm == 1) mst = kruskal();
 		for (int i = 0; i < nClusters - 1; i++) {
 			int v1; int v2;
 			mst.heaviestEdge(v1, v2);
@@ -578,6 +713,24 @@ Graph<int> washington(int N, int**& weights) {
 	}
 	return graph;
 }
+
+template<class T> Graph<int> graphFromPoints(std::vector<T> pts, int**& weights, double(*distance)(T, T)) {
+	const int nVertices = pts.size();
+	std::vector<Vertex<int>> vertices(nVertices);
+	weights = new int* [nVertices];
+	for (int i = 0; i < nVertices; i++) {
+		weights[i] = new int[nVertices];
+		for (int j = 0; j < nVertices; j++)
+			weights[i][j] = 0;
+	}
+	Graph<int> graph(vertices, weights);
+	for (int i = 0; i < nVertices; i++)
+		for (int j = 0; j < nVertices; j++) {
+			graph.addEdge(i, j, int(distance(pts[i], pts[j]) * 100));
+		}
+	return graph;
+}
+
 const int ITERATIONS = 1;
 const int NVERTICES = ITERATIONS * 9;
 //const int NVERTICES = 10;
@@ -586,8 +739,8 @@ const double a = 0.0001, b = 100;
 
 int main()
 {
-	//srand(time(NULL));
-
+	srand(time(NULL));
+	/*
 	std::vector<Vertex<int>> vertices;
 
 	for (int i = 0; i < NVERTICES; i++) {
@@ -615,12 +768,14 @@ int main()
 				weights[k * 9 + j][k * 9 + i] = weights[k * 9 + i][k * 9 + j];
 			}
 	}
-
+	*/
+	/*
 	Graph<int> graph(vertices, weights);
+
 	for (int k = 0; k < ITERATIONS; k++) {
 		graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 1])); //   8-0 7 17-9  16
 	//	graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 7])); //     | |    |  |
-		graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 8])); //   3-1-2-12-10-11- ... 
+		graph.vertices[k * 9 + 0].adjacencyList.push_front(&(graph.vertices[k * 9 + 8])); //   3-1-2-12-10-11- ...
 		graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 0])); //   |\ /|  |\  /|
 		graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 2])); //   5-6-4-14-15-13
 		graph.vertices[k * 9 + 1].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
@@ -655,8 +810,8 @@ int main()
 		}
 	}
 	//	graph.vertices[k * 9 + 9].adjacencyList.push_front(&(graph.vertices[k * 9 + 3]));
-
-	//int** weights = nullptr;
+	*/
+	int** weights = nullptr;
 	//Graph<int> graph1 = generateGraph(NVERTICES, weights);
 	//Graph<int> graph1 = washington(3000, weights);
 
@@ -670,10 +825,23 @@ int main()
 		std::cout << components[i] << " ";
 	std::cout << std::endl << std::endl;
 	*/
-	std::vector<int> clusters;
-	clusters = graph.clusterise(3);
+	std::vector<Iris> irises = readIrisesFromFile("C:/Users/orlov/OneDrive/Documents/Distant/ίθμο/iris.data");
+	/*
+	for (int i = 0; i < 15; i++) {
+		double x = double(rand()) / RAND_MAX, y = double(rand()) / RAND_MAX;
+		pts.push_back(Point(x, y));
+		std::cout << "Point " << i << " is (" << x << ", " << y << ")\n";
+	}
+	*/
+	Graph<int> graph = graphFromPoints<Iris>(irises, weights, &irisDistance);
+	std::vector<int> clusters1, clusters2;
+	//clusters1 = graph.clusterise(4, 0);
+	clusters2 = graph.clusterise(3, 1);
+	//for (int i = 0; i < graph.vertices.size(); i++)
+		//std::cout << clusters1[i] << " ";
+	std::cout << std::endl;
 	for (int i = 0; i < graph.vertices.size(); i++)
-		std::cout << clusters[i] << " ";
+		std::cout << clusters2[i] << " ";
 	std::cout << std::endl << std::endl;
 	/*
 	std::vector<int> distances;
