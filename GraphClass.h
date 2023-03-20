@@ -20,6 +20,14 @@
 //#include "Vertex.h"
 #pragma once
 
+struct Environment {
+	int nThreads;
+	Environment() {}
+	Environment(int n) {
+		nThreads = n;
+	}
+};
+
 struct EdgeInfo {
 	int a;
 	int b;
@@ -41,6 +49,7 @@ struct VertexDistance {
 };
 
 class Graph {
+	int nThreads;
 protected:
 	void convertQueueToBitset(std::queue<int> q, std::vector<bool>& frontier);
 	void convertBitsetToQueue(std::vector<bool> frontier, std::queue<int>& q);
@@ -50,19 +59,20 @@ protected:
 	void BFSBottomUp(int current, std::vector<bool>& markedVertices,
 		std::vector<int>& path, std::vector<int>& distances, std::vector<int>& predecessors, std::vector<bool>& frontier,
 		double b);
-	void collectPaths(int source, int dest, std::vector<std::vector<int>>& paths, std::vector<std::vector<int>> predecessors);
+	void collectPaths(int source, int dest, std::vector<std::vector<int>>& paths, std::vector<int>* predecessors);
 	void brandesBFS(int startingVertex, std::vector<int> clusters, std::vector<std::vector<int>>& predecessors,
 		std::vector<double>& deltas, std::vector<int>& sigmas, std::vector<double>& cbs/*, std::vector<double>* localDeltas = nullptr*/);
-	void modifiedBrandesV1BFS(int startingVertex, std::vector<int>& clusters, std::vector<std::vector<int>>& predecessors,
-		std::vector<double>& deltas, std::vector<int>& sigmas, std::vector<double>& localDeltas, std::vector<int>& localSigmas, std::vector<int>& distances,
+	void modifiedBrandesV1BFS(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
+		double* deltas, int* sigmas, double* localDeltas, int* localSigmas, int* distances,
 		std::vector<bool>& externalNodes);
-	void modifiedBrandesV2BFS(int startingVertex, std::vector<int>& clusters, std::vector<std::vector<int>>& predecessors,
-		std::vector<double>& globalDeltas, int nClusters);
-	std::vector<bool> findBorderNodes(std::vector<int>& clusters);
-	void localBFSAllPaths(int startingVertex, std::vector<int>& clusters, std::vector<std::vector<int>>& predecessors);
-	std::vector<bool> buildHSN(std::vector<int>& clusters, std::vector<bool>& borderNodes);
-	std::vector<std::vector<bool>> findExternalNodes(std::vector<bool>& hsn, std::vector<int>& clusters, std::vector<bool>& borderNodes,
-		std::vector<std::vector<bool>>& updatedClusters, int nClusters); struct equivalenceClass {
+	void modifiedBrandesV2BFS(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
+		double* globalDeltas, int nClusters);
+	void findBorderNodes(std::vector<int>& clusters, std::vector<bool>&);
+	void localBFSAllPaths(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors);
+	void buildHSN(std::vector<int>& clusters, std::vector<bool>& borderNodes, std::vector<bool>&);
+	void findExternalNodes(std::vector<bool>& hsn, std::vector<int>& clusters, std::vector<bool>& borderNodes,
+		std::vector<std::vector<bool>>& updatedClusters, int nClusters, std::vector<bool>*);
+	struct equivalenceClass {
 		std::vector<int> indices;
 		std::vector<int> distances;
 		std::vector<double> sigmas;
@@ -70,13 +80,13 @@ protected:
 		void addVertex(int vertex);
 		int random();
 	};
-	void localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNodes, std::vector<std::vector<bool>>& updatedClusters, std::vector<std::vector<bool>>& externalNodes,
-		std::vector<double>& localDeltas,
-		std::vector<std::vector<int>>& clusterVector, std::vector<std::vector<typename Graph::equivalenceClass> >& classes, int nClusters, int maxCluster);
+	void localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNodes, std::vector<std::vector<bool>>& updatedClusters, std::vector<bool>* externalNodes,
+		double* localDeltas, std::vector<std::vector<int>>& clusterVector, std::vector<std::vector<equivalenceClass> >& classes, int nClusters,
+		int maxCluster);
 
-	std::vector<equivalenceClass> findClasses(std::vector<std::vector<int>>& distances, std::vector<std::vector<double>>& sigmas,
+	std::vector<typename Graph::equivalenceClass> findClasses(int** distances, double** sigmas,
 		std::vector<int>& vectorCluster, std::vector<bool>& borderNodes);
-	std::vector<double> globalDeltas(std::vector<std::vector<equivalenceClass>>& classes, std::vector<int>& clusters, int nClusters);
+	void globalDeltas(std::vector<std::vector<equivalenceClass>>& classes, std::vector<int>& clusters, int nClusters, double*);
 	void DFS(int current, std::vector<bool>& markedVertices, std::vector<int>& path, std::vector<int>& components, int currentComponent);
 	void dijkstra(int current, std::vector<bool>& markedVertices, std::vector<int>& distances, std::vector<int>& predecessors, std::set<VertexDistance>& s);
 	void initDSU(std::vector<int>& p, std::vector<int>& rk);

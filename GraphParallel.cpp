@@ -303,13 +303,29 @@ const int NVERTICES = ITERATIONS * 9;
 
 const double a = 0.0001, b = 100;
 
-int main()
+enum Mode { Daniel = 0, Brandes, compare };
+
+Environment env;
+
+int main(int argc, char** argv)
 {
 	//srand(time(NULL));
 	//srand(11514);
 	srand(115114);
 	//srand(time(NULL));
-	int n = 30000;
+	int n, nThreads; Mode mode = compare;
+	if (argc < 2) {
+		throw("Graph size unspecified");
+	}
+	n = std::atoi(argv[1]);
+	if (argc >= 3) {
+		mode = (Mode)(std::atoi(argv[2]));
+	}
+	if (argc >= 4) {
+		env.nThreads = (Mode)(std::atoi(argv[3]));
+	}
+	else env.nThreads = omp_get_max_threads();
+
 	std::cout << std::endl << "n = " << n << std::endl;
 	//Graph graph = graphFromEdges(7, edges);
 	Graph graph = generateGraph(n, 3.0 / n);
@@ -330,112 +346,40 @@ int main()
 
 	}
 
-	//clock_t begin_time;
-	/*
-	int nClusters;
-	begin_time = clock();
-	graph.louvain(nClusters);
 
-	std::cout << "Louvain: " << float(clock() - begin_time) / CLOCKS_PER_SEC << "s, " << nClusters << " clusters" << std::endl;
+	omp_set_num_threads(env.nThreads);
 
-	begin_time = clock();
-	graph.clusterise(nClusters);
-
-	std::cout << "Prim: " << float(clock() - begin_time) / CLOCKS_PER_SEC << std::endl;
-	char ch; std::cin >> ch;
-	*/
-	//graph.DFS(0, &comp);
-	//std::cout << "c";
-	//Graph<int> graph1 = washington(3000, weights);
-
-	 // DANIEL
-
-	omp_set_num_threads(4);
-
-	std::cout << omp_get_max_threads() << " threads\n";
+	//std::cout << omp_get_num_threads() << " threads\n";
 	std::cout << "NZ = " << graph.adjacencies.size() << std::endl;
-	auto begin_time = omp_get_wtime();
-	std::vector<double> bcsf = graph.fastBC();
-	std::cout << "Daniel: " << float(omp_get_wtime() - begin_time) << std::endl;
-	begin_time = omp_get_wtime();
-	std::vector<double> bcs = graph.brandes();
-	std::cout << "Brandes: " << float(omp_get_wtime() - begin_time) << std::endl;
-	//for (int i = 0; i < bcs.size(); i++) {
-	//	std::cout << bcs[i] << std::endl;
-	//}
-
-	//std::vector<double> bcs = graph.brandes();
-	//std::cout << float(clock() - begin_time) / CLOCKS_PER_SEC;
-
-	//std::vector<double> bcsn = graph.brandesNaive();
-	double maxDiff = -1; int idx = -1; double bcsidx = -1, bcsnidx = -1;
-
-	//<< " " << bcsn[i] << std::endl;
-	for (int i = 0; i < bcs.size(); i++)
-
-		if (abs(bcs[i] - bcsf[i]) > maxDiff) {
-			//std::cout << "i = " << i << ", Brandes BC is " << bcs[i] << ", naive BC is " << bcsf[i] << std::endl;
-			idx = i;
-			bcsidx = bcs[i];
-			bcsnidx = bcsf[i];
-			maxDiff = abs(bcs[i] - bcsf[i]);
-		}
-	std::cout << "Biggest difference is " << abs(bcsidx - bcsnidx) << " at i = " << idx << ", Brandes BC is " << bcsidx << ", Daniel BC is " << bcsnidx << std::endl;
-	//}
-
-	/*
-	std::vector<int> components;
-	std::vector<Vertex<int>*> path = graph.DFS(0, &components);
-	for (int i = 0; i < path.size(); i++)
-		std::cout << path[i]->data.first << " ";
-	std::cout << std::endl << std::endl;
-	for (int i = 0; i < graph.vertices.size(); i++)
-		std::cout << components[i] << " ";
-	std::cout << std::endl << std::endl;
-	*/
-	//std::vector<Iris> irises = readIrisesFromFile("C:/Users/orlov/OneDrive/Documents/Distant/ίθμο/iris.data");
-	/*
-	for (int i = 0; i < 15; i++) {
-		double x = double(rand()) / RAND_MAX, y = double(rand()) / RAND_MAX;
-		pts.push_back(Point(x, y));
-		std::cout << "Point " << i << " is (" << x << ", " << y << ")\n";
+	std::vector<double> bcsf, bcs;
+	double begin_time;
+	if (mode == Daniel || mode == compare) {
+		begin_time = omp_get_wtime();
+		bcsf = graph.fastBC();
+		std::cout << "Daniel: " << float(omp_get_wtime() - begin_time) << std::endl;
 	}
-	*/
-	//Graph<int> graph = graphFromPoints<Iris>(irises, weights, &irisDistance);
-	//std::vector<int> clusters1, clusters2;
-	//clusters1 = graph.clusterise(4, 0);
-	//clusters2 = graph.clusterise(3, 1);
-	//for (int i = 0; i < graph.vertices.size(); i++)
-		//std::cout << clusters1[i] << " ";
-	//std::cout << std::endl;
-	//for (int i = 0; i < graph.vertices.size(); i++)
-	//	std::cout << clusters2[i] << " ";
-	//std::cout << std::endl << std::endl;
-	/*
-	std::vector<int> distances;
-	std::vector<Vertex<int>*> predecessors;
-	std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-	std::vector<Vertex<int>*> BFSpath = graph1.BFS(0, &distances, &predecessors, a, b);
-	std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-	std::cout << time_span.count() << " seconds";
-	std::cout << std::endl;
-	*/
+	if (mode == Brandes || mode == compare) {
+		begin_time = omp_get_wtime();
+		bcs = graph.brandes();
+		std::cout << "Brandes: " << float(omp_get_wtime() - begin_time) << std::endl;
+	}
+	if (mode == compare) {
+		double maxDiff = -1; int idx = -1; double bcsidx = -1, bcsnidx = -1;
 
-	/*
-   for (int i = 0; i < BFSpath.size(); i++)
-	   std::cout << BFSpath[i]->data.first << " ";/*
-   std::cout << std::endl << std::endl;
-   for (int i = 0; i < graph.vertices.size(); i++)
-	   std::cout << distances[i] << " ";
-   std::cout << std::endl << std::endl;
+		//<< " " << bcsn[i] << std::endl;
+		for (int i = 0; i < bcs.size(); i++)
 
-   graph.dijkstra(1, &distances);
-   for (int i = 0; i < graph.vertices.size(); i++)
-	   std::cout << distances[i] << " ";
-   */
-   //for (int i = 0; i < 7; i++)
-   //	delete[] weights[i];
-   //delete[] weights;
+			if (abs(bcs[i] - bcsf[i]) > maxDiff) {
+				//std::cout << "i = " << i << ", Brandes BC is " << bcs[i] << ", naive BC is " << bcsf[i] << std::endl;
+				idx = i;
+				bcsidx = bcs[i];
+				bcsnidx = bcsf[i];
+				maxDiff = abs(bcs[i] - bcsf[i]);
+			}
+		std::cout << "Biggest difference is " << abs(bcsidx - bcsnidx) << " at i = " << idx << ", Brandes BC is " << bcsidx << ", Daniel BC is " << bcsnidx << std::endl;
+	}
+	//}
+
+
 }
 
