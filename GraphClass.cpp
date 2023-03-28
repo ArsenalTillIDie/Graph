@@ -386,6 +386,8 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 	}
 	std::vector<int> updatedClustersInt(size());
 	classes.resize(nClusters);
+	int* vertexDistances = new int[size() * nThreads];
+	int* vertexLocalSigmas = new int[size() * nThreads];
 #pragma omp parallel for schedule(dynamic) reduction(+: localDeltas[0:size()]) firstprivate \
 (updatedClustersInt) shared(deltas, sigmas, distances, classes, predecessors, localSigmas, normalisedSigmas)
 	for (int c = 0; c < nClusters; c++) {
@@ -407,9 +409,7 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 			updatedClustersInt[i] = int(updatedClusters[c][i]);
 		}
 		for (int i = 0; i < clusterVector[c].size(); i++) {
-			int* vertexDistances = new int[size()];
-			int* vertexLocalSigmas =  new int[size()];
-			for (int j = 0; j < size(); j++) {
+			for (int j = startIndex; j < startIndex + size(); j++) {
 				vertexDistances[j] = 0;
 				vertexLocalSigmas[j] = 0;
 			}
@@ -417,7 +417,7 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 			for (int j = startIndex; j < startIndex + size(); j++) {
 				deltas[j] = 0;
 				sigmas[j] = 0;
-				predecessors[j] = std::vector<int>();
+				predecessors[j].clear();
 			}
 			deltas[s + startIndex] = 1.0;
 			sigmas[s + startIndex] = 1;
@@ -426,13 +426,12 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 			//vertexLocalSigmas[s] = 1;
 		//	std::cout << sigmas[s];
 			modifiedBrandesV1BFS(s, updatedClustersInt, predecessors + startIndex, deltas + startIndex, sigmas + startIndex,\
-				localDeltas, vertexLocalSigmas, vertexDistances, externalNodes[clusters[s]]); // !
+				localDeltas, vertexLocalSigmas + startIndex, vertexDistances + startIndex, externalNodes[clusters[s]]); // !
 			for (int j = 0; j < size(); j++) {
-				distances[localityIndex + i][j] = vertexDistances[j];
-				localSigmas[localityIndex + i][j] = vertexLocalSigmas[j];
+				distances[localityIndex + i][j] = vertexDistances[startIndex + j];
+				localSigmas[localityIndex + i][j] = vertexLocalSigmas[startIndex + j];
 			}													
-			delete[] vertexDistances;
-			delete[] vertexLocalSigmas;
+			
 		}
 		for (int i = 0; i < clusterVector[c].size(); i++) {
 			int s = clusterVector[c][i];
@@ -485,7 +484,9 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 	delete[] localSigmas;
 	delete[] deltas;
 	delete[] sigmas;
-	delete[] predecessors;
+	delete[] predecessors; 
+	delete[] vertexDistances;
+	delete[] vertexLocalSigmas;
 }
 
 Graph::equivalenceClass::equivalenceClass(int vertex, std::vector<int> _distances, std::vector<double> _sigmas) {
@@ -687,6 +688,8 @@ std::vector<int> Graph::louvain(int& nClusters, int desiredNClusters) {
 			double maxModularityGain = 0; int argmmg = -1;
 			std::vector<bool> clusterProcessed(size());
 			bool singleton = true;
+			double modularityGain;
+#pragma omp parallel for schedule(dynamic) shared(clusterProcessed, modularityGain, argmmg)
 			for (int j = currNetwork.row_index[i]; j < currNetwork.row_index[i + 1]; j++) {
 				int it = currNetwork.adjacencies[j];
 				//	std::cout << currNetwork.index(it->data) << std::endl;
@@ -697,7 +700,7 @@ std::vector<int> Graph::louvain(int& nClusters, int desiredNClusters) {
 				}
 				int sin, stot, ki, kiin;
 				sin = currNetwork.sumAllWeights(communities, communities[it], i, &stot, &ki, &kiin);
-				double modularityGain = (double(sin + kiin) / (2 * m) - (double(stot + ki) / (2 * m)) * (double(stot + ki) / (2 * m))) -
+				modularityGain = (double(sin + kiin) / (2 * m) - (double(stot + ki) / (2 * m)) * (double(stot + ki) / (2 * m))) -
 					(double(sin) / (2 * m) - (double(stot) / (2 * m)) * (double(stot) / (2 * m)) - (double(ki) / (2 * m)) * (double(ki) / (2 * m)));
 				if (modularityGain > maxModularityGain) {
 					maxModularityGain = modularityGain;
@@ -863,6 +866,7 @@ std::vector<double> Graph::brandes(std::vector<int> clusters) {
 	std::vector<double> res(size());
 	std::vector<std::vector<int>> predecessors(size());
 	//std::vector<std::vector<int>> S(size(), vector<int>(size(), 0));
+
 	for (int i = 0; i < size(); i++) {
 		std::vector<double> deltas(size());
 		std::vector<int> sigmas(size());
@@ -897,7 +901,9 @@ std::vector<double> Graph::brandesNaive() {
 	}
 	return res;
 }
-std::vector<double> Graph::fastBC() {
+std::vector<double> Graph::fastBC(std::vector<double>& stageTimes) { // clustering 0, border nodes 1, hsn 2, external nodes 3, \
+	local deltas + classes 4, global deltas 5
+	double begin_time = omp_get_wtime();
 	std::vector<double> res(size());
 	int nClusters;
 	//int dnc = pow(size(), 0.5);
@@ -905,7 +911,8 @@ std::vector<double> Graph::fastBC() {
 	adoptSingletons(clusters, nClusters);
 	
 	std::vector<std::vector<int>> clusterVector(nClusters);
-
+	double checkpoint = omp_get_wtime();
+	stageTimes[0] = checkpoint - begin_time;
 	for (int i = 0; i < size(); i++) {
 		clusterVector[clusters[i]].push_back(i);
 	}
@@ -918,13 +925,19 @@ std::vector<double> Graph::fastBC() {
 
 	std::vector<bool> borderNodes(size());
 	findBorderNodes(clusters, borderNodes);
+	stageTimes[1] = omp_get_wtime() - checkpoint;
+	checkpoint = omp_get_wtime();
 	std::vector<bool> hsn(size());
 	buildHSN(clusters, borderNodes, hsn);
+	stageTimes[2] = omp_get_wtime() - checkpoint;
+	checkpoint = omp_get_wtime();
 	std::vector<std::vector<bool>> updatedClusters(nClusters);
 	for (int i = 0; i < nClusters; i++)
 		updatedClusters[i].resize(size());
 	std::vector<bool>* externalNodes = new std::vector<bool>[nClusters];
 	findExternalNodes(hsn, clusters, borderNodes, updatedClusters, nClusters, externalNodes);
+	stageTimes[3] = omp_get_wtime() - checkpoint;
+	checkpoint = omp_get_wtime();
 	double* locDeltas = new double[size()];
 	for (int i = 0; i < size(); i++)
 		locDeltas[i] = 0;
@@ -932,6 +945,8 @@ std::vector<double> Graph::fastBC() {
 	//std::vector<std::vector<double>> normalisedSigmas(size());
 	std::vector<std::vector<Graph::equivalenceClass>> classes;
 	localDeltas(clusters, borderNodes, updatedClusters, externalNodes, locDeltas, clusterVector, classes, nClusters, maxCluster);
+	stageTimes[4] = omp_get_wtime() - checkpoint;
+	checkpoint = omp_get_wtime();
 	//std::vector<std::vector<equivalenceClass>> classes = findClasses(distances, normalisedSigmas, clusters, borderNodes, nClusters);
 	double* globDeltas = new double[size()];
 	for (int i = 0; i < size(); i++)
@@ -944,6 +959,7 @@ std::vector<double> Graph::fastBC() {
 	delete[] externalNodes;
 	delete[] locDeltas;
 	delete[] globDeltas;
+	stageTimes[5] = omp_get_wtime() - checkpoint;
 	return res;
 }
 void Graph::addEdge(int v1, int v2, int weight) {

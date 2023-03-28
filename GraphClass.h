@@ -118,7 +118,7 @@ public:
 	void adoptSingletons(std::vector<int>& clusters, int& nClusters);
 	std::vector<double> brandes(std::vector<int> clusters = {});
 	std::vector<double> brandesNaive();
-	std::vector<double> fastBC();
+	std::vector<double> fastBC(std::vector<double>& stageTimes);
 	void addEdge(int v1, int v2, int weight = 0);
 	void assignWeight(int v1, int v2, int weight);
 	bool areNeighbours(int v1, int v2);

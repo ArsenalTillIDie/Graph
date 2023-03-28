@@ -296,6 +296,11 @@ Graph<int> graphFromMM(std::string path) {
 */
 std::vector<std::vector<int>> edges = { {0,1}, {0,2}, {6,2}, {1,5}, {2,3}, {2,4}, {1,3}, {1,6} };
 
+std::string stageTimeInfo(std::vector<double> times, double full, int index) {
+	std::stringstream sstr;
+	sstr << times[index] << " (" << times[index] / full * 100 << "%)";
+	return sstr.str();
+}
 
 const int ITERATIONS = 1;
 const int NVERTICES = ITERATIONS * 9;
@@ -354,9 +359,17 @@ int main(int argc, char** argv)
 	std::vector<double> bcsf, bcs;
 	double begin_time;
 	if (mode == Daniel || mode == compare) {
+		std::vector<double> stageTimes(6);
 		begin_time = omp_get_wtime();
-		bcsf = graph.fastBC();
-		std::cout << "Daniel: " << float(omp_get_wtime() - begin_time) << std::endl;
+		bcsf = graph.fastBC(stageTimes);
+		double fastBCFull = omp_get_wtime() - begin_time;
+		std::cout << "Daniel: " << fastBCFull << std::endl << std::endl;
+		std::cout << "That is, clustering: " << stageTimeInfo(stageTimes, fastBCFull, 0) << "," << std::endl;
+		std::cout << "finding border nodes: " << stageTimeInfo(stageTimes, fastBCFull, 1) << "," << std::endl;
+		std::cout << "building the HSN: " << stageTimeInfo(stageTimes, fastBCFull, 2) << "," << std::endl;
+		std::cout << "finding external nodes: " << stageTimeInfo(stageTimes, fastBCFull, 3) << "," << std::endl;
+		std::cout << "computing local dependency scores and finding equivalence classes: " << stageTimeInfo(stageTimes, fastBCFull, 4) << "," << std::endl;
+		std::cout << "computing global dependency scores and betweenness centralities: " << stageTimeInfo(stageTimes, fastBCFull, 5) << "." << std::endl << std::endl;
 	}
 	if (mode == Brandes || mode == compare) {
 		begin_time = omp_get_wtime();
