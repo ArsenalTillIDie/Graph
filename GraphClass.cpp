@@ -83,17 +83,15 @@ void Graph::brandesBFS(int startingVertex, std::vector<int> clusters, std::vecto
 				}
 		if (BU && BFSFinished || !BU && q.empty()) break;
 		if (BU) {
-			if (tryToConvertToTD(q, frontier, distances, alpha, Vf)) {
+			if (tryToConvertToTD(q, frontier, distances, beta, Vf)) {
 				BU = false;
 				//std::cout << "->\n";
 			}
 		}
-/*
-		else if (tryToConvertToBU(q, frontier, distances, beta, Ef)) {
+		else if (tryToConvertToBU(q, frontier, distances, alpha, Ef)) {
 			BU = true;
 			//std::cout << "<-\n";
 		}
-*/
 		if (BU) bottomUpIteration(predecessors, s, frontier, next, distances, sigmas);
 		else topDownIteration(predecessors, q, s, distances, sigmas, currDistance);
 		currDistance++;
@@ -715,8 +713,8 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 		}
 		for (int i = 0; i < clusterVector[c].size(); i++) {
 			int s = clusterVector[c][i];
-			int minDistance = std::numeric_limits<int>::max();
-			int minSigma = std::numeric_limits<int>::max();
+			int minDistance = _I32_MAX;
+			int minSigma = _I32_MAX;
 			for (int j = 0; j < clusterVector[c].size(); j++) {
 				int v = clusterVector[c][j];
 				if (!borderNodes[v]) continue;
@@ -744,8 +742,8 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 		localDeltas[v] /= 2;
 	/*
 	for (int s = 0; s < size(); s++) {
-		int minDistance = std::numeric_limits<int>::max();
-		int minSigma = std::numeric_limits<int>::max();
+		int minDistance = _I32_MAX;
+		int minSigma = _I32_MAX;
 		for (int v = 0; v < size(); v++) {
 			if (clusters[v] != clusters[s] || !borderNodes[v]) continue;
 			if (distances[v][s] < minDistance) minDistance = distances[v][s];
@@ -1182,7 +1180,7 @@ void Graph::brandes(double* res, double alpha, double beta, std::vector<int> clu
 	std::vector<int> sigmas(size());
 	//std::vector<std::vector<int>> S(size(), vector<int>(size(), 0));
 	bool* frontier = new bool[size() * nThreads], * next = new bool[size() * nThreads];
-#pragma omp parallel shared(predecessors, deltas, clusters, res, frontier, next) firstprivate(sigmas)
+#pragma omp parallel shared(predecessors, deltas, clusters, res, frontier, next, alpha, beta) firstprivate(sigmas)
 	{
 			
 		double* resPrivate = new double[size()];
