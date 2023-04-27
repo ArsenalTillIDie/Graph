@@ -17,6 +17,7 @@
 #include <fstream>
 #include <deque>
 #include <omp.h>
+#include <limits>
 //#include "Vertex.h"
 #pragma once
 
@@ -32,7 +33,7 @@ struct EdgeInfo {
 	int a;
 	int b;
 	int weight;
-	bool operator<(const EdgeInfo ei) {
+	bool operator<(const EdgeInfo& ei) const {
 		if (weight < ei.weight)
 			return true;
 		else return false;
@@ -60,13 +61,28 @@ protected:
 		std::vector<int>& path, std::vector<int>& distances, std::vector<int>& predecessors, std::vector<bool>& frontier,
 		double b);
 	void collectPaths(int source, int dest, std::vector<std::vector<int>>& paths, std::vector<int>* predecessors);
-	void brandesBFS(int startingVertex, std::vector<int> clusters, std::vector<std::vector<int>>& predecessors,
-		std::vector<double>& deltas, std::vector<int>& sigmas, std::vector<double>& cbs/*, std::vector<double>* localDeltas = nullptr*/);
+	void brandesBFS(int startingVertex, std::vector<int> clusters, std::vector<int>* predecessors,
+		double* deltas, std::vector<int>& sigmas, bool* frontier, bool* next, double alpha, double beta, double* cbs/*, std::vector<double>* localDeltas = nullptr*/);
 	void modifiedBrandesV1BFS(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
 		double* deltas, int* sigmas, double* localDeltas, int* localSigmas, int* distances,
 		std::vector<bool>& externalNodes);
+	void topDownIteration(std::vector<int>* predecessors, \
+		std::deque<int>& q, std::stack<int>& s, std::vector<int>& distances, std::vector<int>& sigmas, int currDistance);
 	void modifiedBrandesV2BFS(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
 		double* globalDeltas, int nClusters);
+	void bottomUpIteration(std::vector<int>* predecessors, std::stack<int>& s, \
+		bool* frontier, bool* next, std::vector<int>& distances, std::vector<int>& sigmas);
+	void modifiedBrandesV2BFSBottomUp(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
+		double* globalDeltas, int nClusters, bool* frontier, bool* next);
+	int degree(int v);
+	int frontierDegreeSum(bool* frontier);
+	int unreachableDegreeSum(std::vector<int>& distances);
+	void convertDequeToBitset(std::deque<int> q, bool* frontier);
+	void convertBitsetToDeque(bool* frontier, std::deque<int>& q);
+	bool tryToConvertToTD(std::deque<int>& q, bool* frontier, std::vector<int>& distances, double alpha, double& Ef);
+	bool tryToConvertToBU(std::deque<int>& q, bool* frontier, std::vector<int>& distances, double beta, double& Vf);
+	void modifiedBrandesV2BFSHybrid(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
+		double* globalDeltas, int nClusters, bool* frontier, bool* next, double alpha, double beta);
 	void findBorderNodes(std::vector<int>& clusters, std::vector<bool>&);
 	void localBFSAllPaths(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors);
 	void buildHSN(std::vector<int>& clusters, std::vector<bool>& borderNodes, std::vector<bool>&);
@@ -116,11 +132,10 @@ public:
 	int sumAllWeights(std::vector<int> clusters, int cluster = -1, int vertex = -1, int* incC = nullptr, int* incV = nullptr, int* between = nullptr);
 	std::vector<int> louvain(int& nClusters, int desiredNClusters = 0);
 	void adoptSingletons(std::vector<int>& clusters, int& nClusters);
-	std::vector<double> brandes(std::vector<int> clusters = {});
+	void brandes(double* res, double alpha, double beta, std::vector<int> clusters = {});
 	std::vector<double> brandesNaive();
 	std::vector<double> fastBC(std::vector<double>& stageTimes);
 	void addEdge(int v1, int v2, int weight = 0);
 	void assignWeight(int v1, int v2, int weight);
 	bool areNeighbours(int v1, int v2);
-	void removeEdge(int v1, int v2);
-};
+	void removeEdge(int v1, int v2);};

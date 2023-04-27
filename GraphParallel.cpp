@@ -19,183 +19,8 @@
 #include <sstream>
 #include <stack>
 #include <fstream>
+
 #include "GraphClass.h"
-
-struct Point {
-	double x;
-	double y;
-	Point(double _x, double _y) {
-		x = _x;
-		y = _y;
-	}
-};
-
-double distance(Point a, Point b) {
-	return pow((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y), 0.5);
-}
-
-struct Iris {
-	double sepalLength;
-	double sepalWidth;
-	double petalLength;
-	double petalWidth;
-};
-
-double irisDistance(Iris a, Iris b) {
-	return pow(pow(a.sepalLength - b.sepalLength, 2) + pow(a.sepalWidth - b.sepalWidth, 2) +
-		pow(a.petalLength - b.petalLength, 2) + pow(a.petalWidth - b.petalWidth, 2), 0.5);
-}
-
-std::vector<Iris> readIrisesFromFile(std::string fileName) {
-	std::ifstream file;
-	std::vector<Iris> irises;
-	file.open(fileName);
-	int i = 0;
-	std::string line;
-	while (std::getline(file, line)) {
-		if (line == "") break;
-		std::istringstream iss(line);
-		std::string substr;
-		Iris iris;
-		std::getline(iss, substr, ',');
-		iris.sepalLength = std::stod(substr);
-		std::getline(iss, substr, ',');
-		iris.sepalWidth = std::stod(substr);
-		std::getline(iss, substr, ',');
-		iris.petalLength = std::stod(substr);
-		std::getline(iss, substr, ',');
-		iris.petalWidth = std::stod(substr);
-		//iss >> iris.sepalLength >> iris.sepalWidth >> iris.petalLength >> iris.petalWidth;
-		irises.push_back(iris);
-	}
-	file.close();
-	return irises;
-}
-/*
-template<class T> class Node {
-public:
-	T data;
-	Node* next;
-	Node(T val, Node* nxt = nullptr) {
-		data = val;
-		next = nxt;
-	}
-};
-*/
-/*
-template<class T> class List {
-private:
-	Node<T>* first;
-public:
-	List() {
-		first = nullptr;
-	}
-	List(const List& lst) : List() {
-		Node<T>* current = nullptr;
-		for (iterator it = lst.begin(); it != end(); ++it) {
-			current = insert_after(it->data, current);
-		}
-	}
-	~List() {
-		iterator it = begin();
-		while (it != end()) {
-			iterator nit(it->next);
-			delete* it;
-			it = nit;
-		}
-	}
-	List<T>& operator=(const List<T> lst) {
-		first = nullptr;
-		Node<T>* current = nullptr;
-		for (iterator it = lst.begin(); it != end(); ++it) {
-			current = insert_after(it->data, current);
-		}
-		return *this;
-	}
-	Node<T>* getFirst() {
-		return first;
-	}
-	T front() {
-		return first->data;
-	}
-	bool empty() {
-		return first == nullptr;
-	}
-	void clear() {
-		iterator it = begin();
-		while (it != end()) {
-			iterator nit(it->next);
-			delete* it;
-			it = nit;
-		}
-		first = nullptr;
-	}
-	Node<T>* insert_after(T data, Node<T>* n) {
-		if (n == nullptr) return push_front(data);
-		Node<T>* pnn = new Node<T>(data, n->next);
-		n->next = pnn;
-		return pnn;
-	}
-	void erase_after(Node<T>* n) {
-		if (n == nullptr) {
-			pop_front();
-			return;
-		}
-		Node<T>* rem = n->next;
-		n->next = rem->next;
-		delete rem;
-	}
-	Node<T>* push_front(T data) {
-		Node<T>* pnn = new Node<T>(data, first);
-		first = pnn;
-		return pnn;
-	}
-	void pop_front() {
-		Node<T>* rem = first;
-		first = rem->next;
-		delete rem;
-	}
-	class iterator {
-	private:
-		Node<T>* current;
-	public:
-		iterator() {
-			current = first;
-		}
-		iterator(Node<T>* pnode) {
-			current = pnode;
-		}
-		iterator(const iterator& it) {
-			current = it.current;
-		}
-		Node<T>*& operator*() {
-			return current;
-		}
-		Node<T>* operator->() {
-			return current;
-		}
-		iterator operator++() {
-			current = current->next;
-			return current;
-		}
-		bool operator==(iterator it) {
-			return it.current == current;
-		}
-		bool operator!=(iterator it) {
-			return !(it == *this);
-		}
-	};
-	iterator begin() const {
-		iterator it(first);
-		return it;
-	}
-	iterator end() const {
-		iterator it(nullptr);
-		return it;
-	}
-};
-*/
-
 
 
 
@@ -302,11 +127,6 @@ std::string stageTimeInfo(std::vector<double> times, double full, int index) {
 	return sstr.str();
 }
 
-const int ITERATIONS = 1;
-const int NVERTICES = ITERATIONS * 9;
-//const int NVERTICES = 10;
-
-const double a = 0.0001, b = 100;
 
 enum Mode { Daniel = 0, Brandes, compare };
 
@@ -316,7 +136,7 @@ int main(int argc, char** argv)
 {
 	//srand(time(NULL));
 	//srand(11514);
-	srand(115114);
+	srand(1114);
 	//srand(time(NULL));
 	int n, nThreads; Mode mode = compare;
 	if (argc < 2) {
@@ -356,7 +176,8 @@ int main(int argc, char** argv)
 
 	//std::cout << omp_get_num_threads() << " threads\n";
 	std::cout << "NZ = " << graph.adjacencies.size() << std::endl;
-	std::vector<double> bcsf, bcs;
+	std::vector<double> bcsf;
+	double* bcs = new double[graph.size()];
 	double begin_time;
 	if (mode == Daniel || mode == compare) {
 		std::vector<double> stageTimes(6);
@@ -372,15 +193,18 @@ int main(int argc, char** argv)
 		std::cout << "computing global dependency scores and betweenness centralities: " << stageTimeInfo(stageTimes, fastBCFull, 5) << "." << std::endl << std::endl;
 	}
 	if (mode == Brandes || mode == compare) {
-		begin_time = omp_get_wtime();
-		bcs = graph.brandes();
-		std::cout << "Brandes: " << float(omp_get_wtime() - begin_time) << std::endl;
+		//for(double alpha = 0.1; alpha < 1; alpha += 0.1)
+			//for (double beta = 0.1; beta < 1; beta += 0.1) {
+				begin_time = omp_get_wtime();
+				graph.brandes(bcs, 0.1, 0.1);
+				std::cout <</* "Alpha = " << alpha << ", beta = "<< beta <<*/"Brandes: " << float(omp_get_wtime() - begin_time) << std::endl;
+			//}
 	}
 	if (mode == compare) {
 		double maxDiff = -1; int idx = -1; double bcsidx = -1, bcsnidx = -1;
 
 		//<< " " << bcsn[i] << std::endl;
-		for (int i = 0; i < bcs.size(); i++)
+		for (int i = 0; i < bcsf.size(); i++)
 
 			if (abs(bcs[i] - bcsf[i]) > maxDiff) {
 				//std::cout << "i = " << i << ", Brandes BC is " << bcs[i] << ", naive BC is " << bcsf[i] << std::endl;

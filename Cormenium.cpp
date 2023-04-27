@@ -239,7 +239,7 @@ Graph Graph::prim(int startingVertex) {
 	Graph res(size());
 	markedVertices[startingVertex] = true;
 	while (!std::all_of(markedVertices.begin(), markedVertices.end(), [](bool v) {return v; })) {
-		int minWeight = INT_MAX; int v1 = -1, v2 = -1, idx = -1;
+		int minWeight = std::numeric_limits<int>::max(); int v1 = -1, v2 = -1, idx = -1;
 		for (int i = 0; i < size(); i++) {
 			if (markedVertices[i]) {
 				for (int j = row_index[i]; j < row_index[i + 1]; j++) {

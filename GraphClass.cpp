@@ -2,11 +2,11 @@
 static const int UNREACHABLE = -1;
 extern Environment env;
 
-#pragma omp declare reduction(vec_double_plus : std::vector<double> : \
+//#pragma omp declare reduction(vec_double_plus : std::vector<double> : \
                               std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<double>())) \
                     initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 
-#pragma omp declare reduction(vec_int_plus : std::vector<int> : \
+//#pragma omp declare reduction(vec_int_plus : std::vector<int> : \
                               std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<int>())) \
                     initializer(omp_priv = decltype(omp_orig)(omp_orig.size()))
 
@@ -54,15 +54,15 @@ void Graph::collectPaths(int source, int dest, std::vector<std::vector<int>>& pa
 		rememberedDepth = depth;
 	}
 }
-void Graph::brandesBFS(int startingVertex, std::vector<int> clusters, std::vector<std::vector<int>>& predecessors,
-	std::vector<double>& deltas, std::vector<int>& sigmas, std::vector<double>& cbs/*, std::vector<double>* localDeltas = nullptr*/) {
+void Graph::brandesBFS(int startingVertex, std::vector<int> clusters, std::vector<int>* predecessors,
+	double* deltas, std::vector<int>& sigmas, bool* frontier, bool* next, double alpha, double beta, double* cbs/*, std::vector<double>* localDeltas = nullptr*/) {
 	//std::vector<bool> markedVertices(size());
 	//std::vector<std::vector<int>> predecessors(size());
 	int currCluster = clusters[startingVertex];
-	std::vector<std::vector<std::vector<int>>> paths(size());
+	//std::vector<std::vector<std::vector<int>>> paths(size());
 	//markedVertices[startingVertex] = true;
-	std::vector<int> path = {};
-	path.push_back(startingVertex);
+	//std::vector<int> path = {};
+	//path.push_back(startingVertex);
 	std::vector<int> distances(size());
 	for (int i = 0; i < size(); i++) {
 		if (i == startingVertex) distances[i] = 0;
@@ -71,25 +71,32 @@ void Graph::brandesBFS(int startingVertex, std::vector<int> clusters, std::vecto
 	std::deque<int> q;
 	std::stack<int> s;
 	q.push_back(startingVertex);
+	int currDistance = 0;
+	bool BU = false;
+	double Vf = 0, Ef = 1;
 	while (!q.empty()) { //
-		int u = q.front();
-		q.pop_front();
-		s.push(u);
-		for (int i = row_index[u]; i < row_index[u + 1]; i++) {
-			int it = adjacencies[i];
-			if (clusters[it] != currCluster) continue;
-			if (distances[it] == UNREACHABLE) {
-				//markedVertices[it] = true;
-				//path.push_back(it);
-				distances[it] = distances[u] + 1;
-				//predecessors[it] = u;
-				q.push_back(it);
-			}
-			if (distances[u] + 1 == distances[it]) {
-				predecessors[it].push_back(u);
-				sigmas[it] += sigmas[u];
+		bool BFSFinished = true;
+		if (BU)
+			for (int i = 0; i < size(); i++)
+				if (frontier[i]) {
+					BFSFinished = false;
+				}
+		if (BU && BFSFinished || !BU && q.empty()) break;
+		if (BU) {
+			if (tryToConvertToTD(q, frontier, distances, alpha, Vf)) {
+				BU = false;
+				//std::cout << "->\n";
 			}
 		}
+/*
+		else if (tryToConvertToBU(q, frontier, distances, beta, Ef)) {
+			BU = true;
+			//std::cout << "<-\n";
+		}
+*/
+		if (BU) bottomUpIteration(predecessors, s, frontier, next, distances, sigmas);
+		else topDownIteration(predecessors, q, s, distances, sigmas, currDistance);
+		currDistance++;
 	} //
 	while (!s.empty()) {
 		int w = s.top();
@@ -150,6 +157,34 @@ void Graph::modifiedBrandesV1BFS(int startingVertex, std::vector<int>& clusters,
 		localSigmas[w] = sigmas[w];
 	}
 }
+
+void Graph::topDownIteration(std::vector<int>* predecessors, \
+	std::deque<int>& q, std::stack<int>& s, std::vector<int>& distances, std::vector<int>& sigmas, int currDistance) {
+	while (!q.empty()) {
+		int u = q.front();
+		if (distances[u] > currDistance) return;
+		q.pop_front();
+		s.push(u);
+		//std::cout << u << "pushed\n";
+		for (int i = row_index[u]; i < row_index[u + 1]; i++) {
+			int it = adjacencies[i];
+			//currDistance = distances[u];
+			//if (clusters[it] != currCluster && clusters[u] != currCluster) continue;
+			if (distances[it] == UNREACHABLE) {
+				//markedVertices[it] = true;
+				//path.push_back(it);
+				distances[it] = distances[u] + 1;
+				//predecessors[it] = u;
+				q.push_back(it);
+			}
+			if (distances[u] + 1 == distances[it]) {
+				predecessors[it].push_back(u);
+				sigmas[it] += sigmas[u];
+			}
+		}
+	}
+}
+
 void Graph::modifiedBrandesV2BFS(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
 	double* globalDeltas, int nClusters) {
 	//std::vector<bool> markedVertices(size());
@@ -179,33 +214,127 @@ void Graph::modifiedBrandesV2BFS(int startingVertex, std::vector<int>& clusters,
 	std::deque<int> q;
 	std::stack<int> s;
 	q.push_back(startingVertex);
+	int currDistance = 0;
 	while (!q.empty()) { //
-		int u = q.front();
-		q.pop_front();
-		s.push(u);
-		for (int i = row_index[u]; i < row_index[u + 1]; i++) {
-			int it = adjacencies[i];
-			//if (clusters[it] != currCluster && clusters[u] != currCluster) continue;
-			if (distances[it] == UNREACHABLE) {
-				//markedVertices[it] = true;
-				//path.push_back(it);
-				distances[it] = distances[u] + 1;
-				//predecessors[it] = u;
-				q.push_back(it);
-			}
-			if (distances[u] + 1 == distances[it]) {
-				predecessors[it].push_back(u);
-				sigmas[it] += sigmas[u];
-			}
-		}
+		topDownIteration(predecessors, q, s, distances, sigmas, currDistance++);
 	} //
+	//std::cout << s.size() << std::endl;
 	while (!s.empty()) {
 		int w = s.top();
 		s.pop();
+		std::vector<int>& predV = predecessors[w];
+		double sig = 1.0 / sigmas[w];
+		int cl = clusters[w];
+		double* ds = deltas[w];
+//#pragma omp parallel for schedule(dynamic) shared(ds, cl, predV, sig)
+		for (int i = 0; i < predV.size(); i++) {
+			int v = predV[i];
+			int predSig = sigmas[v];
+			double* predDs = deltas[v];
+			for (int j = 0; j < nClusters; j++) {
+				predDs[j] += predSig * ds[j] * sig;
+			}
+			predDs[cl] += predSig * sig;
+		}
+		if (w != startingVertex) {
+			if (clusters[w] != currCluster) {
+				globalDeltas[w] += 2 * deltas[w][clusters[w]];
+				//globalDeltas[w] += deltas[w][clusters[w]];
+//#pragma omp parallel for schedule(dynamic) reduction(+: globalDeltas[w])  shared(w, deltas, clusters)
+				for (int j = 0; j < nClusters; j++) {
+					if (j == clusters[w]) continue;
+					else globalDeltas[w] += deltas[w][j];
+				}
+			}
+			//localSigmas[w] += sigmas[w];
+		}
+	}
+	//std::cout << globalDeltas[0] << std::endl;
+	for (int i = 0; i < size(); i++) {
+		delete[] deltas[i];
+	}
+	delete[] deltas;
+}
+
+void Graph::bottomUpIteration(std::vector<int>* predecessors, std::stack<int>& s, \
+	bool* frontier, bool* next, std::vector<int>& distances, std::vector<int>& sigmas) {
+	for (int i = 0; i < size(); i++)
+		if (frontier[i]) {
+			s.push(i);
+			//std::cout << i << "pushed\n";
+		}
+	for (int i = 0; i < size(); i++) {
+		for (int j = row_index[i]; j < row_index[i + 1]; j++) {
+			int it = adjacencies[j];
+			if (!frontier[it]) continue;
+			if (distances[i] == UNREACHABLE) {
+				//markedVertices[it] = true;
+				//path.push_back(it);
+				distances[i] = distances[it] + 1;
+				//predecessors[it] = u;
+				next[i] = true;
+			}
+			if (distances[i] == distances[it] + 1) {
+				predecessors[i].push_back(it);
+				sigmas[i] += sigmas[it];
+			}
+		}
+
+	}
+	for (int i = 0; i < size(); i++) {
+		frontier[i] = next[i];
+		next[i] = 0;
+	}
+}
+
+void Graph::modifiedBrandesV2BFSBottomUp(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
+	double* globalDeltas, int nClusters, bool* frontier, bool* next) {
+	//std::vector<bool> markedVertices(size());
+	//std::vector<std::vector<int>> predecessors(size());
+	int currCluster = clusters[startingVertex];
+	double** deltas = new double* [size()];
+	//std::vector<std::vector<double>> deltas(size());
+	for (int i = 0; i < size(); i++) {
+		deltas[i] = new double[nClusters];
+		for (int j = 0; j < nClusters; j++)
+			deltas[i][j] = 0;
+	}
+	std::vector<int> sigmas(size());
+	sigmas[startingVertex] = 1;
+	for (int i = 0; i < nClusters; i++) {
+		deltas[startingVertex][i] = 1;
+	}
+	std::vector<int> distances(size());
+	//std::vector<std::vector<std::vector<int>>> paths(size());
+	//markedVertices[startingVertex] = true;
+	//std::vector<int> path = {};
+	//path.push_back(&(vertices[startingVertex]));
+	for (int i = 0; i < size(); i++) {
+		if (i == startingVertex) distances[i] = 0;
+		else distances[i] = UNREACHABLE;
+	}
+	std::stack<int> s;
+	bool iterationComplete = false;
+	while (true) { //
+		bool BFSFinished = true;
+		for (int i = 0; i < size(); i++)
+			if (frontier[i]) {
+				BFSFinished = false;
+				//std::cout << "The show must go on";
+				//break;
+			}
+		if (BFSFinished) break;
+		bottomUpIteration(predecessors, s, frontier, next, distances, sigmas);
+	} //
+	//std::cout << s.size() << std::endl;
+	while (!s.empty()) {
+		int w = s.top();
+		s.pop();
+		//std::cout << "Popped "<< w <<"\n";
 		for (int i = 0; i < predecessors[w].size(); i++) {
 			int v = predecessors[w][i];
 			for (int j = 0; j < nClusters; j++) {
-				deltas[v][j] += double(sigmas[v]) / sigmas[w] * (int(clusters[w] == j) + deltas[w][j]);
+				deltas[v][j] += double(sigmas[v] * (int(clusters[w] == j) + deltas[w][j])) / sigmas[w];
 			}
 		}
 		if (w != startingVertex) {
@@ -226,6 +355,152 @@ void Graph::modifiedBrandesV2BFS(int startingVertex, std::vector<int>& clusters,
 	}
 	delete[] deltas;
 }
+
+int Graph::degree(int v) {
+	return row_index[v + 1] - row_index[v];
+}
+
+int Graph::frontierDegreeSum(bool* frontier) {
+	int res = 0;
+	for (int i = 0; i < size(); i++)
+		if (frontier[i]) res += degree(i);
+	return res;
+}
+
+int Graph::unreachableDegreeSum(std::vector<int>& distances) {
+	int res = 0;
+	for (int i = 0; i < size(); i++)
+		if (distances[i] == UNREACHABLE) res += degree(i);
+	return res;
+}
+
+void Graph::convertDequeToBitset(std::deque<int> q, bool* frontier) {
+	for (int i = 0; i < size(); i++)
+		frontier[i] = false;
+	while (!q.empty()) {
+		frontier[(q.front())] = true;
+		q.pop_front();
+	}
+}
+void Graph::convertBitsetToDeque(bool* frontier, std::deque<int>& q) {
+	while (!q.empty()) {
+		q.pop_front();
+	}
+	//for (int i = 0; i < size(); i++)
+	//	std::cout << frontier[i];
+	//std::cout << std::endl;
+	for (int i = 0; i < size(); i++)
+		if (frontier[i])
+			q.push_front(i);
+}
+bool Graph::tryToConvertToTD(std::deque<int>& q, bool* frontier, std::vector<int>& distances, double alpha, double& Ef) {
+	double previousEf = Ef;
+	Ef = frontierDegreeSum(frontier);
+	//std::cout << Ef / unreachableDegreeSum(distances) << std::endl;
+	if (Ef > previousEf && Ef > alpha * unreachableDegreeSum(distances)) {
+		convertBitsetToDeque(frontier, q);
+		return true;
+	}
+	else return false;
+}
+
+bool Graph::tryToConvertToBU(std::deque<int>& q, bool* frontier, std::vector<int>& distances, double beta, double& Vf) {
+	double previousVf = Vf;
+	Vf = q.size();
+	//std::cout << Vf / row_index[size()] << std::endl;
+	if (Vf < previousVf && Vf < beta * row_index[size()]) {
+		convertDequeToBitset(q, frontier);
+		return true;
+	}
+	else return false;
+}
+
+void Graph::modifiedBrandesV2BFSHybrid(int startingVertex, std::vector<int>& clusters, std::vector<int>* predecessors,
+	double* globalDeltas, int nClusters, bool* frontier, bool* next, double alpha, double beta) {
+	//std::vector<bool> markedVertices(size());
+	//std::vector<std::vector<int>> predecessors(size());
+	//std::cout << "starting vertex " << startingVertex << std::endl;
+	int currCluster = clusters[startingVertex];
+	double** deltas = new double* [size()];
+	//std::vector<std::vector<double>> deltas(size());
+	for (int i = 0; i < size(); i++) {
+		deltas[i] = new double[nClusters];
+		for (int j = 0; j < nClusters; j++)
+			deltas[i][j] = 0;
+	}
+	std::vector<int> sigmas(size());
+	sigmas[startingVertex] = 1;
+	for (int i = 0; i < nClusters; i++) {
+		deltas[startingVertex][i] = 1;
+	}
+	std::vector<int> distances(size());
+	//std::vector<std::vector<std::vector<int>>> paths(size());
+	//markedVertices[startingVertex] = true;
+	//std::vector<int> path = {};
+	//path.push_back(&(vertices[startingVertex]));
+	for (int i = 0; i < size(); i++) {
+		if (i == startingVertex) distances[i] = 0;
+		else distances[i] = UNREACHABLE;
+	}
+	std::deque<int> q;
+	std::stack<int> s;
+	q.push_back(startingVertex);
+	int currDistance = 0;
+	bool BU = false;
+	double Ef = 1, Vf = 0;
+	while (true) { //
+		bool BFSFinished = true;
+		if(BU)
+		for (int i = 0; i < size(); i++)
+			if (frontier[i]) {
+				BFSFinished = false;
+			}
+		if (BU && BFSFinished || !BU && q.empty()) break;
+		if (BU) {
+			if (tryToConvertToTD(q, frontier, distances, alpha, Vf)) {
+				BU = false;
+				//std::cout << "->\n";
+			}
+		}
+		else if (tryToConvertToBU(q, frontier, distances, beta, Ef)) {
+			BU = true;
+			//std::cout << "<-\n";
+		}
+		if (BU) bottomUpIteration(predecessors, s, frontier, next, distances, sigmas);
+		else topDownIteration(predecessors, q, s, distances, sigmas, currDistance);
+		currDistance++;
+		//std::cout << startingVertex << " " << BU << " " << currDistance << std::endl;
+	} //
+	//std::cout << s.size() << std::endl;
+	while (!s.empty()) {
+		int w = s.top();
+		s.pop();
+		//std::cout << "Popped "<< w <<"\n";
+		for (int i = 0; i < predecessors[w].size(); i++) {
+			int v = predecessors[w][i];
+			for (int j = 0; j < nClusters; j++) {
+				deltas[v][j] += double(sigmas[v] * (int(clusters[w] == j) + deltas[w][j])) / sigmas[w];
+			}
+		}
+		if (w != startingVertex) {
+			if (clusters[w] != currCluster) {
+				globalDeltas[w] += 2 * deltas[w][clusters[w]];
+				//globalDeltas[w] += deltas[w][clusters[w]];
+				for (int j = 0; j < nClusters; j++) {
+					if (j == clusters[w]) continue;
+					else globalDeltas[w] += deltas[w][j];
+				}
+			}
+			//localSigmas[w] += sigmas[w];
+		}
+	}
+	//std::cout << globalDeltas[0] << std::endl;
+	for (int i = 0; i < size(); i++) {
+		delete[] deltas[i];
+	}
+	delete[] deltas;
+}
+
 void Graph::findBorderNodes(std::vector<int>& clusters, std::vector<bool>& res) {
 	// std::vector<bool> res(size());
 #pragma omp parallel for shared(res)
@@ -388,8 +663,13 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 	classes.resize(nClusters);
 	int* vertexDistances = new int[size() * nThreads];
 	int* vertexLocalSigmas = new int[size() * nThreads];
-#pragma omp parallel for schedule(dynamic) reduction(+: localDeltas[0:size()]) firstprivate \
-(updatedClustersInt) shared(deltas, sigmas, distances, classes, predecessors, localSigmas, normalisedSigmas)
+#pragma omp parallel firstprivate \
+(updatedClustersInt) shared(deltas, sigmas, distances, classes, predecessors, localSigmas, normalisedSigmas, localDeltas)
+	{
+	double* privateLocalDeltas = new double[size()];
+	for (int i = 0; i < size(); i++)
+		privateLocalDeltas[i] = 0;
+#pragma omp for schedule(dynamic)
 	for (int c = 0; c < nClusters; c++) {
 		int startIndex = size() * omp_get_thread_num();
 		int localityIndex = maxCluster * omp_get_thread_num();
@@ -425,23 +705,23 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 			//normalisedSigmas[s] = 1;
 			//vertexLocalSigmas[s] = 1;
 		//	std::cout << sigmas[s];
-			modifiedBrandesV1BFS(s, updatedClustersInt, predecessors + startIndex, deltas + startIndex, sigmas + startIndex,\
-				localDeltas, vertexLocalSigmas + startIndex, vertexDistances + startIndex, externalNodes[clusters[s]]); // !
+			modifiedBrandesV1BFS(s, updatedClustersInt, predecessors + startIndex, deltas + startIndex, sigmas + startIndex, \
+			privateLocalDeltas, vertexLocalSigmas + startIndex, vertexDistances + startIndex, externalNodes[clusters[s]]); // !
 			for (int j = 0; j < size(); j++) {
 				distances[localityIndex + i][j] = vertexDistances[startIndex + j];
 				localSigmas[localityIndex + i][j] = vertexLocalSigmas[startIndex + j];
-			}													
-			
+			}
+
 		}
 		for (int i = 0; i < clusterVector[c].size(); i++) {
 			int s = clusterVector[c][i];
-			int minDistance = _I32_MAX;
-			int minSigma = _I32_MAX;
+			int minDistance = std::numeric_limits<int>::max();
+			int minSigma = std::numeric_limits<int>::max();
 			for (int j = 0; j < clusterVector[c].size(); j++) {
 				int v = clusterVector[c][j];
 				if (!borderNodes[v]) continue;
 				if (distances[localityIndex + j][s] < minDistance) minDistance = distances[localityIndex + j][s];
-				if (localSigmas[localityIndex + j][s] < minSigma) minSigma = localSigmas[localityIndex  + j][s];
+				if (localSigmas[localityIndex + j][s] < minSigma) minSigma = localSigmas[localityIndex + j][s];
 			}
 			for (int j = 0; j < clusterVector[c].size(); j++) {
 				int v = clusterVector[c][j];
@@ -451,14 +731,21 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 			}
 		}
 		classes[c] = findClasses(distances + localityIndex, normalisedSigmas + localityIndex, clusterVector[c], borderNodes);
-	}
 
+	}
+#pragma omp critical
+		{
+		for (int i = 0; i < size(); i++)
+			localDeltas[i] += privateLocalDeltas[i];
+		}
+	delete[] privateLocalDeltas;
+	}
 	for (int v = 0; v < size(); v++)
 		localDeltas[v] /= 2;
 	/*
 	for (int s = 0; s < size(); s++) {
-		int minDistance = _I32_MAX;
-		int minSigma = _I32_MAX;
+		int minDistance = std::numeric_limits<int>::max();
+		int minSigma = std::numeric_limits<int>::max();
 		for (int v = 0; v < size(); v++) {
 			if (clusters[v] != clusters[s] || !borderNodes[v]) continue;
 			if (distances[v][s] < minDistance) minDistance = distances[v][s];
@@ -484,9 +771,10 @@ void Graph::localDeltas(std::vector<int>& clusters, std::vector<bool>& borderNod
 	delete[] localSigmas;
 	delete[] deltas;
 	delete[] sigmas;
-	delete[] predecessors; 
+	delete[] predecessors;
 	delete[] vertexDistances;
 	delete[] vertexLocalSigmas;
+	
 }
 
 Graph::equivalenceClass::equivalenceClass(int vertex, std::vector<int> _distances, std::vector<double> _sigmas) {
@@ -540,24 +828,46 @@ void Graph::globalDeltas(std::vector<std::vector<equivalenceClass>>& classes, st
 	//std::vector<double> res(size());
 	std::vector<int>* predecessors = new std::vector<int>[size() * nThreads];
 	double* deltaContribs = new double[size() * nThreads];
-#pragma omp parallel for schedule(dynamic) reduction(+: res[0:size()]) firstprivate(deltaContribs) shared(predecessors)
-	for (int c = 0; c < nClusters; c++) {
-		for (int i = 0; i < classes[c].size(); i++) {
-			if (c == 0 && i == 0) std::cout << omp_get_num_threads() << " threads\n";
-			int pivot = classes[c][i].indices[0];
-			int startIndex = size() * omp_get_thread_num();
-			for (int j = startIndex; j < startIndex + size(); j++) {
-				predecessors[j] = std::vector<int>();
-				deltaContribs[j] = 0;
-			}
-			modifiedBrandesV2BFS(pivot, clusters, predecessors + startIndex, deltaContribs + startIndex, nClusters);
-			for (int s = 0; s < size(); s++) {
-				res[s] += deltaContribs[s + startIndex] * classes[c][i].indices.size() / 2;
+	bool* frontier = new bool[size() * nThreads], * next = new bool[size() * nThreads];
+#pragma omp parallel firstprivate(deltaContribs) shared(predecessors, frontier, next, res)
+	{
+		double* resPrivate = new double[size()];
+		for (int i = 0; i < size(); i++)
+			resPrivate[i] = 0;
+#pragma omp for schedule(dynamic)
+		for (int c = 0; c < nClusters; c++) {
+			for (int i = 0; i < classes[c].size(); i++) {
+				if (c == 0 && i == 0) std::cout << omp_get_num_threads() << " threads\n";
+				int pivot = classes[c][i].indices[0];
+				int startIndex = size() * omp_get_thread_num();
+				for (int j = startIndex; j < startIndex + size(); j++) {
+					predecessors[j] = std::vector<int>();
+					deltaContribs[j] = 0;
+					frontier[j] = false;
+					next[j] = false;
+				}
+				frontier[startIndex + pivot] = true;
+				double alpha = 0.1, beta = 0.1;
+				modifiedBrandesV2BFS(pivot, clusters, predecessors + startIndex, deltaContribs + startIndex, nClusters);
+				//modifiedBrandesV2BFSHybrid(pivot, clusters, predecessors + startIndex, deltaContribs + startIndex, \
+				nClusters, frontier + startIndex, next + startIndex, alpha, beta);
+				for (int s = 0; s < size(); s++) {
+					resPrivate[s] += deltaContribs[s + startIndex] * classes[c][i].indices.size() / 2;
+				}
 			}
 		}
+#pragma omp critical
+		{
+			for (int i = 0; i < size(); i++) {
+				res[i] += resPrivate[i];
+			}
+		}
+		delete[] resPrivate;
 	}
 	delete[] predecessors;
 	delete[] deltaContribs;
+	delete[] frontier;
+	delete[] next;
 	//return;
 	//return res;
 }
@@ -858,26 +1168,55 @@ void Graph::adoptSingletons(std::vector<int>& clusters, int& nClusters) {
 		nClusters--;
 	}
 }
-std::vector<double> Graph::brandes(std::vector<int> clusters) {
+void Graph::brandes(double* res, double alpha, double beta, std::vector<int> clusters) {
+	omp_set_num_threads(nThreads);
 	if (clusters.size() == 0) {
 		for (int i = 0; i < size(); i++)
 			clusters.push_back(0);
 	}
-	std::vector<double> res(size());
-	std::vector<std::vector<int>> predecessors(size());
-	//std::vector<std::vector<int>> S(size(), vector<int>(size(), 0));
-
 	for (int i = 0; i < size(); i++) {
-		std::vector<double> deltas(size());
-		std::vector<int> sigmas(size());
-		std::fill(predecessors.begin(), predecessors.end(), std::vector<int>());
-		deltas[i] = 1.0;
-		sigmas[i] = 1;
-		brandesBFS(i, clusters, predecessors, deltas, sigmas, res);
+		res[i] = 0;
 	}
-	for (int i = 0; i < size(); i++)
-		res[i] = res[i] / 2;
-	return res;
+	std::vector<int>* predecessors = new std::vector<int>[size() * nThreads];
+	double* deltas = new double[size() * nThreads];
+	std::vector<int> sigmas(size());
+	//std::vector<std::vector<int>> S(size(), vector<int>(size(), 0));
+	bool* frontier = new bool[size() * nThreads], * next = new bool[size() * nThreads];
+#pragma omp parallel shared(predecessors, deltas, clusters, res, frontier, next) firstprivate(sigmas)
+	{
+			
+		double* resPrivate = new double[size()];
+		for (int i = 0; i < size(); i++)
+			resPrivate[i] = 0;
+#pragma omp for schedule(dynamic)
+		for (int i = 0; i < size(); i++) {
+			int startIndex = omp_get_thread_num() * size();
+			for (int j = startIndex; j < startIndex + size(); j++) {
+				deltas[j] = 0;
+				predecessors[j] = std::vector<int>();
+				frontier[j] = false;
+				next[j] = false;
+			}
+			frontier[i] = true;
+			for (int j = 0; j < size(); j++) {
+				sigmas[j] = 0;
+			}
+			deltas[i + startIndex] = 1.0;
+			sigmas[i] = 1;
+			brandesBFS(i, clusters, predecessors + startIndex, deltas + startIndex, sigmas, frontier, next, alpha, beta, resPrivate);
+		}
+#pragma omp critical
+		{
+			for (int i = 0; i < size(); i++) {
+				res[i] += resPrivate[i] / 2;
+			}
+		}
+		delete[] resPrivate;
+	}
+	delete[] frontier;
+	delete[] next;
+	delete[] predecessors;
+	delete[] deltas;
 }
 std::vector<double> Graph::brandesNaive() {
 	std::vector<double> res(size());
@@ -909,11 +1248,13 @@ std::vector<double> Graph::fastBC(std::vector<double>& stageTimes) { // clusteri
 	//int dnc = pow(size(), 0.5);
 	std::vector<int> clusters = louvain(nClusters);
 	adoptSingletons(clusters, nClusters);
-	
+	//nClusters = 1; // AAAAAAAAAAAAAAAAAAAAAAAAAAA
 	std::vector<std::vector<int>> clusterVector(nClusters);
 	double checkpoint = omp_get_wtime();
 	stageTimes[0] = checkpoint - begin_time;
+	
 	for (int i = 0; i < size(); i++) {
+		//clusters[i] = 0; // AAAAAAAAAAAAAAAAAAAAAAAAAAA
 		clusterVector[clusters[i]].push_back(i);
 	}
 	int maxCluster = 0;
