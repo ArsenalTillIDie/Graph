@@ -19,8 +19,183 @@
 #include <sstream>
 #include <stack>
 #include <fstream>
-
 #include "GraphClass.h"
+
+struct Point {
+	double x;
+	double y;
+	Point(double _x, double _y) {
+		x = _x;
+		y = _y;
+	}
+};
+
+double distance(Point a, Point b) {
+	return pow((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y), 0.5);
+}
+
+struct Iris {
+	double sepalLength;
+	double sepalWidth;
+	double petalLength;
+	double petalWidth;
+};
+
+double irisDistance(Iris a, Iris b) {
+	return pow(pow(a.sepalLength - b.sepalLength, 2) + pow(a.sepalWidth - b.sepalWidth, 2) +
+		pow(a.petalLength - b.petalLength, 2) + pow(a.petalWidth - b.petalWidth, 2), 0.5);
+}
+
+std::vector<Iris> readIrisesFromFile(std::string fileName) {
+	std::ifstream file;
+	std::vector<Iris> irises;
+	file.open(fileName);
+	int i = 0;
+	std::string line;
+	while (std::getline(file, line)) {
+		if (line == "") break;
+		std::istringstream iss(line);
+		std::string substr;
+		Iris iris;
+		std::getline(iss, substr, ',');
+		iris.sepalLength = std::stod(substr);
+		std::getline(iss, substr, ',');
+		iris.sepalWidth = std::stod(substr);
+		std::getline(iss, substr, ',');
+		iris.petalLength = std::stod(substr);
+		std::getline(iss, substr, ',');
+		iris.petalWidth = std::stod(substr);
+		//iss >> iris.sepalLength >> iris.sepalWidth >> iris.petalLength >> iris.petalWidth;
+		irises.push_back(iris);
+	}
+	file.close();
+	return irises;
+}
+/*
+template<class T> class Node {
+public:
+	T data;
+	Node* next;
+	Node(T val, Node* nxt = nullptr) {
+		data = val;
+		next = nxt;
+	}
+};
+*/
+/*
+template<class T> class List {
+private:
+	Node<T>* first;
+public:
+	List() {
+		first = nullptr;
+	}
+	List(const List& lst) : List() {
+		Node<T>* current = nullptr;
+		for (iterator it = lst.begin(); it != end(); ++it) {
+			current = insert_after(it->data, current);
+		}
+	}
+	~List() {
+		iterator it = begin();
+		while (it != end()) {
+			iterator nit(it->next);
+			delete* it;
+			it = nit;
+		}
+	}
+	List<T>& operator=(const List<T> lst) {
+		first = nullptr;
+		Node<T>* current = nullptr;
+		for (iterator it = lst.begin(); it != end(); ++it) {
+			current = insert_after(it->data, current);
+		}
+		return *this;
+	}
+	Node<T>* getFirst() {
+		return first;
+	}
+	T front() {
+		return first->data;
+	}
+	bool empty() {
+		return first == nullptr;
+	}
+	void clear() {
+		iterator it = begin();
+		while (it != end()) {
+			iterator nit(it->next);
+			delete* it;
+			it = nit;
+		}
+		first = nullptr;
+	}
+	Node<T>* insert_after(T data, Node<T>* n) {
+		if (n == nullptr) return push_front(data);
+		Node<T>* pnn = new Node<T>(data, n->next);
+		n->next = pnn;
+		return pnn;
+	}
+	void erase_after(Node<T>* n) {
+		if (n == nullptr) {
+			pop_front();
+			return;
+		}
+		Node<T>* rem = n->next;
+		n->next = rem->next;
+		delete rem;
+	}
+	Node<T>* push_front(T data) {
+		Node<T>* pnn = new Node<T>(data, first);
+		first = pnn;
+		return pnn;
+	}
+	void pop_front() {
+		Node<T>* rem = first;
+		first = rem->next;
+		delete rem;
+	}
+	class iterator {
+	private:
+		Node<T>* current;
+	public:
+		iterator() {
+			current = first;
+		}
+		iterator(Node<T>* pnode) {
+			current = pnode;
+		}
+		iterator(const iterator& it) {
+			current = it.current;
+		}
+		Node<T>*& operator*() {
+			return current;
+		}
+		Node<T>* operator->() {
+			return current;
+		}
+		iterator operator++() {
+			current = current->next;
+			return current;
+		}
+		bool operator==(iterator it) {
+			return it.current == current;
+		}
+		bool operator!=(iterator it) {
+			return !(it == *this);
+		}
+	};
+	iterator begin() const {
+		iterator it(first);
+		return it;
+	}
+	iterator end() const {
+		iterator it(nullptr);
+		return it;
+	}
+};
+*/
+
 
 
 
@@ -46,6 +221,31 @@ Graph generateGraph(int nVertices, double chance) {
 			}
 		}
 	}
+	return graph;
+}
+
+Graph generateConnectedGraph(int n, double avgDeg, int seed = -1){
+	static int called = 1;
+	called++;
+	if(seed >= 0) srand(seed);
+	Graph graph = generateGraph(n, avgDeg / n);
+
+	std::vector<int> comp; int nComp;
+	graph.DFS(0, &comp, &nComp);
+	//sum = 0;
+	std::vector<bool> componentProcessed(nComp);
+	componentProcessed[0] = true;
+	for (int i = 0; i < n; i++) {
+		if (componentProcessed[comp[i]]) continue;
+		int rV;
+		do {
+			rV = rand() % n;
+		} while (comp[rV] != comp[i] - 1);
+		graph.addEdge(i, rV, 1);
+		componentProcessed[comp[i]] = true;
+
+	}
+	srand(time(NULL) + called);
 	return graph;
 }
 
@@ -128,7 +328,7 @@ std::string stageTimeInfo(std::vector<double> times, double full, int index) {
 }
 
 
-enum Mode { Daniel = 0, Brandes, compare };
+enum Mode { Daniel = 0, Brandes, compare, test };
 
 Environment env;
 
@@ -136,9 +336,10 @@ int main(int argc, char** argv)
 {
 	//srand(time(NULL));
 	//srand(11514);
-	srand(1114);
+	//srand(111514);
 	//srand(time(NULL));
-	int n, nThreads; Mode mode = compare;
+	int n, nThreads; Mode mode = compare; int hybrid = 0; double alpha = 0.1; double beta = 0.1; double avgDeg = 3.0;
+	int seed = 111514;
 	if (argc < 2) {
 		throw("Graph size unspecified");
 	}
@@ -150,10 +351,25 @@ int main(int argc, char** argv)
 		env.nThreads = (Mode)(std::atoi(argv[3]));
 	}
 	else env.nThreads = omp_get_max_threads();
-
+	if (argc >= 5) {
+		hybrid = (bool)(std::atoi(argv[4]));
+	}
+	if (argc >= 6) {
+		alpha = std::stod(argv[5]);
+	}
+	if (argc >= 7) {
+		beta = std::stod(argv[6]);
+	}
+	if (argc >= 8) {
+		avgDeg = std::stod(argv[7]);
+	}
+	if(argc >= 9){
+		seed = std::atoi(argv[8]);
+	}
+	srand(seed);
 	std::cout << std::endl << "n = " << n << std::endl;
 	//Graph graph = graphFromEdges(7, edges);
-	Graph graph = generateGraph(n, 3.0 / n);
+	Graph graph = generateGraph(n, avgDeg / n);
 
 	std::vector<int> comp; int nComp;
 	graph.DFS(0, &comp, &nComp);
@@ -182,7 +398,7 @@ int main(int argc, char** argv)
 	if (mode == Daniel || mode == compare) {
 		std::vector<double> stageTimes(6);
 		begin_time = omp_get_wtime();
-		bcsf = graph.fastBC(stageTimes);
+		bcsf = graph.fastBC(stageTimes, hybrid, alpha, beta);
 		double fastBCFull = omp_get_wtime() - begin_time;
 		std::cout << "Daniel: " << fastBCFull << std::endl << std::endl;
 		std::cout << "That is, clustering: " << stageTimeInfo(stageTimes, fastBCFull, 0) << "," << std::endl;
@@ -196,7 +412,7 @@ int main(int argc, char** argv)
 		//for(double alpha = 0.1; alpha < 1; alpha += 0.1)
 			//for (double beta = 0.1; beta < 1; beta += 0.1) {
 				begin_time = omp_get_wtime();
-				graph.brandes(bcs, 0.1, 0.1);
+				graph.brandes(bcs, hybrid, alpha, beta);
 				std::cout <</* "Alpha = " << alpha << ", beta = "<< beta <<*/"Brandes: " << float(omp_get_wtime() - begin_time) << std::endl;
 			//}
 	}
@@ -214,6 +430,28 @@ int main(int argc, char** argv)
 				maxDiff = abs(bcs[i] - bcsf[i]);
 			}
 		std::cout << "Biggest difference is " << abs(bcsidx - bcsnidx) << " at i = " << idx << ", Brandes BC is " << bcsidx << ", Daniel BC is " << bcsnidx << std::endl;
+	}
+	if (mode == test) {
+		std::ofstream file;
+		file.open("Hybrid Brandes times.txt");
+		for(double dens = 3; dens < 30; dens *= 2){
+			Graph graph = generateConnectedGraph(4000, dens, seed);
+			for(int thr = 1; thr <= 1; thr *= 2){
+				graph.setNThreads(thr);
+				for(double alpha = 0.1; alpha < 1; alpha += 0.2){
+					for(double beta = 0.1; beta < 1; beta += 0.2){
+						begin_time = omp_get_wtime();
+						graph.brandes(bcs, hybrid, alpha, beta);
+						float time = float(omp_get_wtime() - begin_time);
+						std::cout << "Alpha = " << alpha << ", beta = "<< beta << ", " << thr << " threads. Brandes: " << float(omp_get_wtime() - begin_time) << std::endl;
+						file << time << " ";
+					}
+				}
+				file << "\n";
+			}
+				 
+		}
+		file.close();
 	}
 	//}
 
